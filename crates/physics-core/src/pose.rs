@@ -1,8 +1,8 @@
 use rapier2d::na::{ComplexField, RealField};
 
 use crate::geometry::{
-    BikeGeometryInspection, ClearanceShape, ContactSurface, Point2, bike_contact_points,
-    inspect_bike_geometry, rider_link_lengths, signed_shape_separation,
+    BikeContactPoints, BikeGeometryInspection, ClearanceShape, ContactSurface, Point2,
+    bike_contact_points, inspect_bike_geometry, rider_link_lengths, signed_shape_separation,
 };
 use crate::scenario::{
     BikeSpec, JointLimit, PoseClip, PoseInterpolation, PoseTargets, RiderSpec, Scenario,
@@ -16,7 +16,7 @@ const EDIT_BISECTION_ITERATIONS: usize = 32;
 /// the relative bends between segments. These are what keep a leg or torso
 /// physically possible; the bike contacts do the rest of the limiting.
 const KNEE_HYPEREXTENSION_RAD: f32 = -0.09;
-const KNEE_FLEXION_RAD: f32 = 2.62;
+pub const KNEE_FLEXION_RAD: f32 = 2.62;
 const HIP_EXTENSION_RAD: f32 = -0.44;
 const HIP_FLEXION_RAD: f32 = 2.44;
 /// Seat contact sits just below the hip joint centre, not a whole pelvis away.
@@ -160,7 +160,7 @@ fn clamp_targets(targets: PoseTargets, rider: &RiderSpec) -> (PoseTargets, bool)
     )
 }
 
-fn wrap_angle(value: f32) -> f32 {
+pub fn wrap_angle(value: f32) -> f32 {
     let tau = core::f32::consts::TAU;
     let mut wrapped = value % tau;
     if wrapped > core::f32::consts::PI {
@@ -252,6 +252,17 @@ pub fn sample_pose(
     rider: &RiderSpec,
     bike: &BikeSpec,
 ) -> PoseSampleOutput {
+    sample_pose_with_contacts(clip, s, rider, &bike_contact_points(bike))
+}
+
+/// Same as [`sample_pose`] but reuses precomputed bike contacts, which the
+/// solver derives once per solve because bicycle geometry is static.
+pub fn sample_pose_with_contacts(
+    clip: &PoseClip,
+    s: f32,
+    rider: &RiderSpec,
+    contacts: &BikeContactPoints,
+) -> PoseSampleOutput {
     let interpolation_mode = clip.interpolation;
 
     let keys = &clip.keys;
@@ -331,9 +342,39 @@ pub fn sample_pose(
     };
 
     let (targets, targets_constrained) = clamp_targets(raw_targets, rider);
+    let skeleton = build_skeleton(&targets, rider, &contacts);
+    let constrained = targets_constrained || skeleton.arm_constrained;
 
+    PoseSampleOutput {
+        s,
+        targets,
+        derived_arm: DerivedArm {
+            shoulder: skeleton.shoulder,
+            elbow: skeleton.elbow,
+            constrained,
+        },
+        landmarks: skeleton.landmarks,
+        solver_version: SOLVER_VERSION.to_string(),
+    }
+}
+
+/// Connected side-plane skeleton built from absolute segment targets, with the
+/// foot planted on the pedal and the hand locked to the grip.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkeletonBuild {
+    pub landmarks: AchievedPoseLandmarks,
+    pub shoulder: f32,
+    pub elbow: f32,
+    /// The grip was out of reach or the shoulder/elbow hit its declared limit.
+    pub arm_constrained: bool,
+}
+
+pub fn build_skeleton(
+    targets: &PoseTargets,
+    rider: &RiderSpec,
+    contacts: &BikeContactPoints,
+) -> SkeletonBuild {
     let links = rider_link_lengths(rider);
-    let contacts = bike_contact_points(bike, targets.hip);
 
     // Leg: forward kinematics anchored bottom-up at the pedal contact so the
     // foot always coincides with the pedal by construction (FR-014).
@@ -375,16 +416,7 @@ pub fn sample_pose(
     let hand_point = grip;
     let (elbow_value, elbow_limited) = clamp_scalar(elbow_angle, &rider.joints.elbow);
 
-    let constrained = targets_constrained || reach_constrained || shoulder_limited || elbow_limited;
-
-    PoseSampleOutput {
-        s,
-        targets,
-        derived_arm: DerivedArm {
-            shoulder: shoulder_value,
-            elbow: elbow_value,
-            constrained,
-        },
+    SkeletonBuild {
         landmarks: AchievedPoseLandmarks {
             pedal_contact: pedal,
             ankle: ankle_point,
@@ -396,7 +428,9 @@ pub fn sample_pose(
             handlebar_contact: grip,
             head: head_point,
         },
-        solver_version: SOLVER_VERSION.to_string(),
+        shoulder: shoulder_value,
+        elbow: elbow_value,
+        arm_constrained: reach_constrained || shoulder_limited || elbow_limited,
     }
 }
 

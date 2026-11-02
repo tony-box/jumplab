@@ -49,13 +49,11 @@ pub fn derive_bike_mass_properties(
         &mut elements,
         total_mass * 0.10,
         point(landmarks, "rearAxle"),
-        spec.wheel_size * 0.0254 * 0.5,
     );
     add_wheel(
         &mut elements,
         total_mass * 0.09,
         point(landmarks, "frontAxle"),
-        spec.wheel_size * 0.0254 * 0.5,
     );
     add_member_group(
         &mut elements,
@@ -127,11 +125,10 @@ pub fn derive_bike_mass_properties(
     }
 }
 
-pub fn combine_bike_and_rider_mass_properties(
-    bike: BikeMassProperties,
+pub fn rider_mass_properties(
     rider: &RiderSpec,
     landmarks: &AchievedPoseLandmarks,
-) -> CombinedMassProperties {
+) -> (Point2, f32) {
     let rider_elements = [
         segment_element(rider.mass * 0.50, landmarks.hip, landmarks.shoulder),
         point_element(rider.mass * 0.08, landmarks.head),
@@ -141,7 +138,15 @@ pub fn combine_bike_and_rider_mass_properties(
         segment_element(rider.mass * 0.04, landmarks.elbow, landmarks.hand),
     ];
     let rider_center = weighted_center(&rider_elements, rider.mass);
-    let rider_inertia = inertia_about(&rider_elements, rider_center);
+    (rider_center, inertia_about(&rider_elements, rider_center))
+}
+
+pub fn combine_bike_and_rider_mass_properties(
+    bike: BikeMassProperties,
+    rider: &RiderSpec,
+    landmarks: &AchievedPoseLandmarks,
+) -> CombinedMassProperties {
+    let (rider_center, rider_inertia) = rider_mass_properties(rider, landmarks);
     let total_mass = bike.total_mass + rider.mass;
     let center_of_gravity = Point2::new(
         (bike.total_mass * bike.center_of_gravity.x + rider.mass * rider_center.x) / total_mass,
@@ -206,11 +211,13 @@ fn point(landmarks: &BTreeMap<String, Point2>, name: &str) -> Point2 {
     landmarks.get(name).copied().unwrap_or_default()
 }
 
-fn add_wheel(elements: &mut Vec<MassElement>, mass: f32, center: Point2, radius: f32) {
+/// Wheels spin on bearings, so their own rotational inertia does not resist frame pitch: each
+/// wheel contributes only its mass at the axle.
+fn add_wheel(elements: &mut Vec<MassElement>, mass: f32, center: Point2) {
     elements.push(MassElement {
         mass,
         center,
-        local_inertia: mass * radius * radius,
+        local_inertia: 0.0,
     });
 }
 

@@ -29,22 +29,69 @@ pub const MAX_SOLVE_DURATION_SECONDS: f32 = 10.0;
 /// over a faceted convex crest.
 pub const TAKEOFF_CLEARANCE_M: f32 = 0.05;
 
-struct LandingContactHooks {
-    collider: ColliderHandle,
-    start_x: f32,
-    end_x: f32,
-    start_y: f32,
-    control_1_y: f32,
-    control_2_y: f32,
-    end_y: f32,
+/// Riding surfaces are sampled polylines. A wheel touching a vertex would otherwise receive a
+/// normal pointing out of that vertex and be kicked by every facet boundary, so contact normals
+/// are blended from the neighbouring facet normals along the surface.
+pub(crate) struct SmoothSurfaceHooks {
+    surfaces: Vec<(ColliderHandle, Vec<[f32; 2]>)>,
 }
 
-impl PhysicsHooks for LandingContactHooks {
+fn facet_normal(left: [f32; 2], right: [f32; 2]) -> Vector {
+    Vector::new(-(right[1] - left[1]), right[0] - left[0]).normalize()
+}
+
+fn vertex_normal(points: &[[f32; 2]], index: usize) -> Vector {
+    let last = points.len() - 1;
+    let before = (index > 0).then(|| facet_normal(points[index - 1], points[index]));
+    let after = (index < last).then(|| facet_normal(points[index], points[index + 1]));
+    match (before, after) {
+        (Some(before), Some(after)) => (before + after).normalize(),
+        (Some(normal), None) | (None, Some(normal)) => normal,
+        (None, None) => Vector::new(0.0, 1.0),
+    }
+}
+
+/// Normals blend toward a vertex only within this distance of it (or half the facet, if shorter),
+/// so long straight facets keep their exact normal.
+const NORMAL_BLEND_DISTANCE_M: f32 = 0.05;
+
+/// Upward surface normal at `x`: the facet normal, blended toward the shared vertex normal close
+/// to each end so the normal is continuous across vertices.
+pub(crate) fn smooth_surface_normal(points: &[[f32; 2]], x: f32) -> Vector {
+    if points.len() < 2 {
+        return Vector::new(0.0, 1.0);
+    }
+    let upper = points
+        .partition_point(|point| point[0] <= x)
+        .clamp(1, points.len() - 1);
+    let (left, right) = (points[upper - 1], points[upper]);
+    let facet = facet_normal(left, right);
+    let span = right[0] - left[0];
+    if span <= f32::EPSILON {
+        return facet;
+    }
+    let blend = NORMAL_BLEND_DISTANCE_M.min(0.5 * span);
+    let left_weight = (1.0 - (x - left[0]) / blend).clamp(0.0, 1.0);
+    let right_weight = (1.0 - (right[0] - x) / blend).clamp(0.0, 1.0);
+    let blended = facet
+        + (vertex_normal(points, upper - 1) - facet) * left_weight
+        + (vertex_normal(points, upper) - facet) * right_weight;
+    blended.normalize()
+}
+
+impl PhysicsHooks for SmoothSurfaceHooks {
     fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
-        let ground_is_first = context.collider1 == self.collider;
-        if !ground_is_first && context.collider2 != self.collider {
+        let Some((ground_is_first, points)) = self.surfaces.iter().find_map(|(handle, points)| {
+            if context.collider1 == *handle {
+                Some((true, points))
+            } else if context.collider2 == *handle {
+                Some((false, points))
+            } else {
+                None
+            }
+        }) else {
             return;
-        }
+        };
         let Some(contact) = context.solver_contacts.first() else {
             return;
         };
@@ -53,22 +100,10 @@ impl PhysicsHooks for LandingContactHooks {
         } else {
             contact.anchor2.x
         };
-        let slope = if contact_x >= self.end_x {
-            0.0
-        } else {
-            let t = ((contact_x - self.start_x) / (self.end_x - self.start_x)).clamp(0.0, 1.0);
-            let inverse = 1.0 - t;
-            let derivative = 3.0
-                * (inverse.powi(2) * (self.control_1_y - self.start_y)
-                    + 2.0 * inverse * t * (self.control_2_y - self.control_1_y)
-                    + t.powi(2) * (self.end_y - self.control_2_y));
-            derivative / (self.end_x - self.start_x)
-        };
-        let upward = Vector::new(-slope, 1.0).normalize();
+        let upward = smooth_surface_normal(points, contact_x);
         *context.normal = if ground_is_first { upward } else { -upward };
     }
 }
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SolverInvariants {
     pub aero_drag_coefficient: f32,
@@ -140,7 +175,7 @@ pub fn solver_invariants() -> SolverInvariants {
     }
 }
 
-fn wheel_contact(narrow_phase: &NarrowPhase, collider: ColliderHandle) -> (bool, f32) {
+pub(crate) fn wheel_contact(narrow_phase: &NarrowPhase, collider: ColliderHandle) -> (bool, f32) {
     narrow_phase
         .contact_pairs_with(collider)
         .fold((false, 0.0), |(touching, impulse), pair| {
@@ -151,7 +186,7 @@ fn wheel_contact(narrow_phase: &NarrowPhase, collider: ColliderHandle) -> (bool,
         })
 }
 
-fn world_point(body: &RigidBody, local: Point2) -> [f32; 2] {
+pub(crate) fn world_point(body: &RigidBody, local: Point2) -> [f32; 2] {
     let point = body.position() * Vector::new(local.x, local.y);
     [point.x, point.y]
 }
@@ -171,63 +206,6 @@ fn simplify_collinear_points(points: Vec<[f32; 2]>) -> Vec<[f32; 2]> {
         simplified.push(point);
     }
     simplified
-}
-
-fn points_are_collinear(points: &[[f32; 2]]) -> bool {
-    let Some(([first, second], remaining)) = points.split_first_chunk::<2>() else {
-        return true;
-    };
-    remaining.iter().all(|point| {
-        let cross = (second[0] - first[0]) * (point[1] - second[1])
-            - (second[1] - first[1]) * (point[0] - second[0]);
-        cross == 0.0
-    })
-}
-
-fn terrain_collider_polylines(profile: &TerrainProfile) -> Vec<Vec<Vector>> {
-    let mut riding_surfaces: Vec<Vec<[f32; 2]>> = Vec::new();
-    let mut landing_faces: Vec<Vec<[f32; 2]>> = Vec::new();
-
-    for segment in &profile.segments {
-        if segment.kind == "landing-face" {
-            landing_faces.push(segment.points.clone());
-            continue;
-        }
-        if segment.kind == "landing-rollout" {
-            continue;
-        }
-
-        let connects = riding_surfaces
-            .last()
-            .and_then(|points| points.last())
-            .zip(segment.points.first())
-            .is_some_and(|(left, right)| {
-                (left[0] - right[0]).abs() <= 1.0e-6 && (left[1] - right[1]).abs() <= 1.0e-6
-            })
-            && riding_surfaces.last().is_some_and(|points| {
-                let mut combined = points.clone();
-                combined.extend_from_slice(&segment.points[1..]);
-                points_are_collinear(&combined)
-            });
-        if connects {
-            if let Some(points) = riding_surfaces.last_mut() {
-                points.extend_from_slice(&segment.points[1..]);
-            }
-        } else {
-            riding_surfaces.push(segment.points.clone());
-        }
-    }
-
-    riding_surfaces
-        .into_iter()
-        .chain(landing_faces)
-        .map(|points| {
-            simplify_collinear_points(points)
-                .into_iter()
-                .map(|[x, y]| Vector::new(x, y))
-                .collect()
-        })
-        .collect()
 }
 
 /// Airborne frames belonging to an interval that reaches real flight clearance. Brief grazes over
@@ -263,7 +241,7 @@ fn flight_mask(frames: &[Frame]) -> Vec<bool> {
     mask
 }
 
-fn build_contact_phases(frames: &[Frame], landing_end_x: f32) -> Vec<PhaseInterval> {
+pub(crate) fn build_contact_phases(frames: &[Frame], landing_end_x: f32) -> Vec<PhaseInterval> {
     if frames.is_empty() {
         return Vec::new();
     }
@@ -329,6 +307,32 @@ fn build_contact_phases(frames: &[Frame], landing_end_x: f32) -> Vec<PhaseInterv
     phases
 }
 
+/// Inserts every terrain segment as a static frictionless collider. Riding surfaces get smooth
+/// contact normals; vertical faces stay plain so their corners remain real body boundaries.
+pub(crate) fn insert_terrain_colliders(
+    terrain: &TerrainProfile,
+    collider_set: &mut ColliderSet,
+) -> SmoothSurfaceHooks {
+    let mut surfaces = Vec::new();
+    for segment in &terrain.segments {
+        let points = simplify_collinear_points(segment.points.clone());
+        let vertices = points.iter().map(|[x, y]| Vector::new(*x, *y)).collect();
+        let builder = ColliderBuilder::polyline(vertices, None)
+            .friction(0.0)
+            .restitution(0.0);
+        if segment.kind == "landing-face" {
+            collider_set.insert(builder.build());
+        } else {
+            let handle = collider_set.insert(
+                builder
+                    .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
+                    .build(),
+            );
+            surfaces.push((handle, points));
+        }
+    }
+    SmoothSurfaceHooks { surfaces }
+}
 pub fn solve_scenario(scenario: &Scenario, run_id: &str) -> Result<SolveOutput, String> {
     scenario.validate()?;
     if !validate_design(scenario)?.can_solve {
@@ -362,43 +366,7 @@ pub fn solve_scenario(scenario: &Scenario, run_id: &str) -> Result<SolveOutput, 
     let mut ccd_solver = CCDSolver::new();
     let mut physics_pipeline = PhysicsPipeline::new();
 
-    for points in terrain_collider_polylines(&terrain) {
-        let ground = ColliderBuilder::polyline(points, None)
-            .friction(0.0)
-            .restitution(0.0)
-            .build();
-        collider_set.insert(ground);
-    }
-    let landing = terrain
-        .segments
-        .iter()
-        .find(|segment| segment.kind == "landing-rollout")
-        .ok_or_else(|| "landing-rollout terrain is missing".to_string())?;
-    let landing_collider = collider_set.insert(
-        ColliderBuilder::polyline(
-            landing
-                .points
-                .iter()
-                .map(|point| Vector::new(point[0], point[1]))
-                .collect(),
-            None,
-        )
-        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
-        .friction(0.0)
-        .restitution(0.0)
-        .build(),
-    );
-    let landing_end = landing.points[landing.points.len() - 2];
-    let landing_tangent = libm::tanf(scenario.jump.landing_angle);
-    let landing_hooks = LandingContactHooks {
-        collider: landing_collider,
-        start_x: landing.points[0][0],
-        end_x: landing_end[0],
-        start_y: landing.points[0][1],
-        control_1_y: landing.points[0][1] - landing_tangent * scenario.jump.landing_length / 3.0,
-        control_2_y: landing_end[1],
-        end_y: landing_end[1],
-    };
+    let landing_hooks = insert_terrain_colliders(&terrain, &mut collider_set);
 
     let initial_y = terrain_height_at(&terrain, scenario.entry.start_x)
         .ok_or_else(|| "entry.startX is not supported by terrain".to_string())?;

@@ -825,31 +825,15 @@ pub fn rider_link_lengths(rider: &RiderSpec) -> RiderLinkLengths {
     }
 }
 
-/// Required rider-to-bike contact points, derived from bike dimensions alone.
-/// Reference geometry matches a modern (2020s) size-large 29" trail/enduro
-/// hardtail (reach ~470 mm, stack ~630 mm) so the handlebar contact used for
-/// arm reach agrees with the head-tube/stem position drawn on screen.
+/// Rider-to-bike contact points taken from the measured bike geometry: the
+/// forward pedal at a level crank and the handlebar grip.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BikeContactPoints {
     pub pedal_contact: Point2,
     pub handlebar_contact: Point2,
 }
 
-/// Adult crank arm length: the schematic forward offset of the active pedal
-/// from the bottom bracket centre for a level (3 o'clock) crank position.
-pub const CRANK_RADIUS_M: f32 = 0.17;
-/// Bottom-bracket-to-head-tube-top horizontal distance ("reach").
-pub const REACH_M: f32 = 0.47;
-/// Bottom-bracket-to-head-tube-top vertical distance ("stack").
-pub const STACK_M: f32 = 0.63;
-/// Representative stem length forward of the head tube top.
-pub const STEM_FORWARD_M: f32 = 0.05;
-/// Representative riser-bar rise above the head tube top.
-pub const BAR_RISE_M: f32 = 0.03;
-/// Small hip-driven handlebar height perturbation (existing preview behaviour).
-pub const GRIP_HIP_INFLUENCE: f32 = 0.03;
-
-pub fn bike_contact_points(bike: &BikeSpec, _hip_target: f32) -> BikeContactPoints {
+pub fn bike_contact_points(bike: &BikeSpec) -> BikeContactPoints {
     let inspection = inspect_bike_geometry(bike);
 
     BikeContactPoints {

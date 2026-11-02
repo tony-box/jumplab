@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 
 pub const SCENARIO_SCHEMA_VERSION: u32 = 3;
 pub const BIKE_GEOMETRY_MODEL_VERSION: u32 = 1;
+/// The rider coupling and rigid contacts need at least this physics rate to stay stable.
+pub const MIN_PHYSICS_HZ: u32 = 240;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -226,6 +228,11 @@ impl Scenario {
         let rounded = frequency.round() as u32;
         if rounded == 0 || !rounded.is_multiple_of(self.solver.output_hz) {
             return Err("outputHz must divide the fixed solve frequency".to_string());
+        }
+        if rounded < MIN_PHYSICS_HZ {
+            return Err(format!(
+                "physics frequency (1/dt x substeps) must be at least {MIN_PHYSICS_HZ} Hz"
+            ));
         }
 
         Ok(())

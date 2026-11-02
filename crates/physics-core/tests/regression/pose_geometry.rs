@@ -127,7 +127,7 @@ fn positive_knee_target_increases_forward_knee_offset() {
     extended.targets.knee = 0.1;
 
     let links = rider_link_lengths(&scenario.rider);
-    let pedal = physics_core::geometry::bike_contact_points(&scenario.bike, 0.0).pedal_contact;
+    let pedal = physics_core::geometry::bike_contact_points(&scenario.bike).pedal_contact;
 
     let flexed_x = pedal.x + flexed.targets.knee.sin() * links.shank;
     let extended_x = pedal.x + extended.targets.knee.sin() * links.shank;

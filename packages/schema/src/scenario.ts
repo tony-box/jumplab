@@ -268,6 +268,9 @@ const supportedOutputHz = z.union([
   z.literal(960)
 ]);
 
+/** The rider coupling and rigid contacts need at least this physics rate to stay stable. */
+export const MIN_PHYSICS_HZ = 240;
+
 export const solverConfigSchema = z
   .object({
     dt: supportedDt,
@@ -288,6 +291,13 @@ export const solverConfigSchema = z
         code: z.ZodIssueCode.custom,
         message: "outputHz must divide the fixed physics frequency exactly",
         path: ["outputHz"]
+      });
+    }
+    if (rounded < MIN_PHYSICS_HZ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `physics frequency (1/dt x substeps) must be at least ${MIN_PHYSICS_HZ} Hz`,
+        path: ["substeps"]
       });
     }
   });
