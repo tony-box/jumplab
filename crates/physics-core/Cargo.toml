@@ -1,0 +1,19 @@
+[package]
+name = "physics-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.0"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+rapier2d = { version = "0.35.2", default-features = false, features = ["dim2", "f32", "enhanced-determinism", "serde-serialize"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+sha2 = "0.10.9"
+thiserror = "2.0.20"
+wasm-bindgen = "0.2.127"
+libm = "0.2"

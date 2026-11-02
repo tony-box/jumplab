@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T18:49:53.048Z",
+  "status": "pass",
+  "exactDevice": {
+    "source": "local benchmark host",
+    "physics": {
+      "platform": "win32",
+      "arch": "x64",
+      "node": "v24.14.1"
+    },
+    "interaction": {
+      "platform": "win32",
+      "arch": "x64",
+      "node": "v24.14.1"
+    }
+  },
+  "physics": {
+    "artifactVersion": 2,
+    "benchmarkVersion": 1,
+    "capturedAt": "2026-09-02T18:49:19.185Z",
+    "status": "pass",
+    "environment": {
+      "platform": "win32",
+      "arch": "x64",
+      "node": "v24.14.1"
+    },
+    "capabilities": {
+      "wasmPack": {
+        "available": true,
+        "status": "pass"
+      },
+      "parityTargets": [
+        "native-rust",
+        "node-wasm",
+        "chromium",
+        "firefox",
+        "webkit"
+      ]
+    },
+    "checks": {
+      "nativeWasmBrowserParity": "pass",
+      "deterministicRepeatRuns": "pass",
+      "timestepConvergence": "pass",
+      "zeroDragFrictionUnmodeledDamping": "pass",
+      "measuredTelemetry": "pass"
+    },
+    "physicsEvidence": {
+      "parity": {
+        "status": "pass",
+        "source": "tests/parity/physics-parity.spec.ts",
+        "outputs": [
+          "resultHash",
+          "PoseSample",
+          "EntrySpeedWindow"
+        ]
+      },
+      "determinism": {
+        "status": "pass",
+        "source": "crates/physics-core/tests/determinism/golden.rs"
+      },
+      "convergence": {
+        "status": "pass",
+        "source": "crates/physics-core/tests/convergence/fixed_step.rs"
+      },
+      "exclusions": {
+        "status": "pass",
+        "source": "crates/physics-core/tests/regression/exclusions.rs"
+      },
+      "telemetry": {
+        "status": "pass",
+        "source": "crates/physics-core/src/telemetry.rs"
+      }
+    },
+    "runs": 20,
+    "solve": {
+      "samplesMs": [
+        789.8265999999985,
+        597.8812999999973,
+        576.3795000000027,
+        574.8614999999991,
+        593.2652000000016,
+        614.1699000000008,
+        615.3040000000001,
+        561.1470000000008,
+        576.4503000000004,
+        573.8414999999986,
+        584.3041000000012,
+        584.8878000000004,
+        599.552300000003,
+        579.3073999999979,
+        589.299500000001,
+        562.1384999999973,
+        576.4961999999978,
+        560.1844999999994,
+        589.0692000000017,
+        590.6981999999989
+      ],
+      "p50Ms": 584.3041000000012,
+      "p95Ms": 615.3040000000001,
+      "status": "pass"
+    },
+    "progress": {
+      "monotonic": true,
+      "samples": [
+        0,
+        1
+      ],
+      "status": "pass",
+      "notes": "Worker solve lifecycle emits start and completion fractions in monotonic order."
+    },
+    "cancel": {
+      "samplesMs": [
+        2.373599999998987,
+        1.4887000000016997,
+        1.5328000000008615,
+        1.823499999998603,
+        1.7736999999979162,
+        1.6529999999984284,
+        1.631199999999808,
+        2.4543999999987136,
+        1.549699999999575,
+        1.9891999999999825,
+        1.6728999999977532,
+        1.4598000000005413,
+        1.598100000002887,
+        1.6432000000022526,
+        1.8819000000003143,
+        1.5275000000001455,
+        1.9495999999999185,
+        1.9675999999999476,
+        1.9466000000029453,
+        1.5576000000000931
+      ],
+      "p50Ms": 1.6529999999984284,
+      "p95Ms": 2.373599999998987,
+      "status": "pass",
+      "mechanism": "Forced termination of an active worker executing the real Node WASM solve."
+    }
+  },
+  "interaction": {
+    "artifactVersion": 1,
+    "capturedAt": "2026-09-02T18:49:51.026Z",
+    "status": "pass",
+    "environment": {
+      "platform": "win32",
+      "arch": "x64",
+      "node": "v24.14.1"
+    },
+    "routes": [
+      "/workbench",
+      "/designer",
+      "/report"
+    ],
+    "browserEvidence": [
+      {
+        "name": "chromium",
+        "workflow": "pass",
+        "metricProvenance": "pass",
+        "performance": {
+          "inputP95Ms": 16.30000001192093,
+          "frameP50Ms": 16.699999999999818,
+          "fps": 59.88023952095874,
+          "droppedFrames": 0,
+          "presentationSolveDispatches": 0,
+          "status": "pass"
+        },
+        "designerPerformance": {
+          "updateCount": 30,
+          "withinBudget": 30,
+          "withinBudgetRate": 1,
+          "updateP95Ms": 97.30000001192093,
+          "status": "pass",
+          "continuousBikeEdits": 20,
+          "modeSwitches": 10,
+          "validatedKeyCount": 64,
+          "staleCancellation": {
+            "discarded": true,
+            "inspectionCount": 2,
+            "finalReach": 0.47
+          }
+        },
+        "canvas": {
+          "minimum": 47,
+          "maximum": 244,
+          "nonTransparent": 145092
+        },
+        "offlineReload": true
+      },
+      {
+        "name": "firefox",
+        "workflow": "pass",
+        "metricProvenance": "pass",
+        "performance": null,
+        "designerPerformance": null,
+        "canvas": null,
+        "offlineReload": false
+      },
+      {
+        "name": "webkit",
+        "workflow": "pass",
+        "metricProvenance": "pass",
+        "performance": null,
+        "designerPerformance": null,
+        "canvas": null,
+        "offlineReload": false
+      }
+    ],
+    "checks": {
+      "renderedReferenceParity": "pass",
+      "sourceProvenance": "pass",
+      "axeSeriousCritical": "pass",
+      "keyboardAndCanvasAlternative": "pass",
+      "localSaveExportImport": "pass",
+      "serviceWorkerOfflineReload": "pass"
+    },
+    "thresholds": {
+      "inputP95Ms": 100,
+      "minimumFps": 55,
+      "maximumDroppedFrames": 0,
+      "presentationSolveDispatches": 0,
+      "designerUpdatesUnder100ms": 0.95
+    }
+  }
+}

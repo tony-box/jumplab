@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 3,
+  "id": "2fbb1b9d-c304-48ef-b42d-f7c3418a8f30",
+  "name": "Standard Jump",
+  "jump": {
+    "kind": "table",
+    "lipHeight": 1.2,
+    "lipAngle": 0.82,
+    "transitionLength": 1.7,
+    "gap": 6,
+    "stepDelta": 0,
+    "landingAngle": 0.35,
+    "landingLength": 9,
+    "rollout": 5
+  },
+  "rider": {
+    "height": 1.78,
+    "mass": 75,
+    "legRatio": 0.48,
+    "armRatio": 0.38,
+    "strengthScale": 1,
+    "kp": 1500,
+    "kd": 120,
+    "joints": {
+      "knee": { "min": -0.1, "max": 1.7, "tauMax": 700 },
+      "hip": { "min": -1.4, "max": 1.1, "tauMax": 800 },
+      "spine": { "min": -0.6, "max": 1.6, "tauMax": 500 },
+      "shoulder": { "min": -2.8, "max": 1.4, "tauMax": 350 },
+      "elbow": { "min": -0.1, "max": 2.6, "tauMax": 300 }
+    }
+  },
+  "bike": {
+    "frameType": "hardtail",
+    "wheelSize": 29,
+    "wheelbase": 1.25,
+    "chainstay": 0.44,
+    "bbHeight": 0.33,
+    "mass": 14,
+    "fork": {
+      "travel": 0.15,
+      "sag": 0.035,
+      "springRate": 21000,
+      "damping": 1450
+    },
+    "rearShock": null,
+    "geometry": {
+      "modelVersion": 1,
+      "reach": 0.47,
+      "stack": 0.63,
+      "headTubeLength": 0.11,
+      "headTubeAngle": 1.1344640137963142,
+      "forkLength": 0.5706583371144672,
+      "forkOffset": 0.05,
+      "seatTubeLength": 0.322,
+      "seatTubeAngle": 1.3264502315156903,
+      "saddleHeight": 0.46,
+      "saddleSetback": 0,
+      "crankLength": 0.17,
+      "handlebarOffsetX": 0.05,
+      "handlebarOffsetY": 0.03
+    }
+  },
+  "entry": {
+    "speed": 7.2,
+    "startX": -5
+  },
+  "poseClip": {
+    "id": "8f5ae67b-86cd-4111-af3a-7d2a758d6d16",
+    "name": "Neutral preload",
+    "interpolation": "cubic",
+    "keys": [
+      {
+        "s": -6,
+        "label": "Approach",
+        "targets": { "knee": 0.3, "hip": -0.5, "spine": 0.75 }
+      },
+      {
+        "s": 0,
+        "label": "Lip",
+        "targets": { "knee": 0.35, "hip": -0.6, "spine": 0.85 }
+      },
+      {
+        "s": 4,
+        "label": "Flight",
+        "targets": { "knee": 0.2, "hip": -0.4, "spine": 0.6 }
+      }
+    ]
+  },
+  "solver": {
+    "dt": 0.0010416666666666667,
+    "substeps": 4,
+    "ccd": true,
+    "seed": 0,
+    "outputHz": 240,
+    "solverVersion": "rapier-0.35.2-two-wheel-contact-v5-geometry-v1-mass-distribution-v1"
+  }
+}

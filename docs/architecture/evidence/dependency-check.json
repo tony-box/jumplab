@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T18:49:52.651Z",
+  "status": "pass",
+  "lockfileVersion": 3,
+  "packageCount": 597,
+  "licenseCheck": "pass",
+  "integrityCheck": "pass",
+  "audit": {
+    "status": "pass",
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  }
+}

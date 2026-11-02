@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Bike and Pose Designer",
+  "entry": "designer.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-24T18:05:39.936Z",
+  "updatedAt": "2026-08-24T18:05:39.936Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true,
+    "canonicalRoute": "/designer",
+    "routeAliases": [
+      "/pose"
+    ],
+    "stableRegions": [
+      "designer-page",
+      "designer-mode",
+      "bike-geometry-rail",
+      "bike-derived-rail",
+      "design-conflict-summary",
+      "designer-canvas",
+      "pose-canvas"
+    ]
+  }
+}

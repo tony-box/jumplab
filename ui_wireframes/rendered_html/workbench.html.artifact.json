@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "workbench.html",
+  "entry": "workbench.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-24T17:58:44.847Z",
+  "updatedAt": "2026-08-24T17:58:44.847Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

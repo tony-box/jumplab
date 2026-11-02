@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike and Pose Designer — 2D MTB Jump Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:oklch(98% 0.005 250); --surface:oklch(100% 0 0); --surface-2:oklch(96.5% 0.006 250);
+  --fg:oklch(22% 0.02 240); --muted:oklch(50% 0.018 240);
+  --border:oklch(90% 0.008 240); --border-strong:oklch(84% 0.01 240);
+  --accent:oklch(58% 0.16 145); --accent-ink:oklch(41% 0.12 145);
+  --stage:oklch(24% 0.025 250); --stage-fg:oklch(94% 0.008 250); --stage-muted:oklch(66% 0.02 250);
+  --warn:oklch(64% 0.14 75); --danger:oklch(55% 0.19 27); --info:oklch(56% 0.13 250);
+  --font-display:'Archivo','Segoe UI',system-ui,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);margin:0;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;border-radius:3px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-rows:auto auto 1fr;height:100vh;min-height:0}
+.topbar{display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.mark{display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:-.02em;text-decoration:none;color:var(--fg)}
+.mark .v{font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.nav{display:flex;gap:2px;margin-left:6px}
+.nav a{padding:6px 10px;border-radius:5px;text-decoration:none;color:var(--muted);font-size:13px;font-weight:500;transition:background .14s var(--ease),color .14s var(--ease)}
+.nav a:hover{background:var(--surface-2);color:var(--fg)}
+.nav a[aria-current="page"]{color:var(--fg);background:oklch(93% 0.008 250);font-weight:600}
+.spacer{flex:1}
+.modebar{display:flex;align-items:center;gap:12px;padding:7px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.modes{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden}
+.modes label{position:relative;min-width:74px;padding:5px 12px;text-align:center;font-size:12px;font-weight:700;cursor:pointer}
+.modes label+label{border-left:1px solid var(--border-strong)}
+.modes input{position:absolute;opacity:0;pointer-events:none}
+.modes label:has(input:checked){background:var(--fg);color:var(--surface)}
+.bike-only{display:none}
+.app[data-mode="bike"] .pose-only{display:none!important}
+.app[data-mode="bike"] .bike-only{display:block}
+.app[data-mode="bike"] .body{grid-template-columns:320px minmax(0,1fr) 320px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.03em;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.pill.warn{color:oklch(38% 0.1 75);background:oklch(96% 0.05 85);border-color:oklch(85% 0.09 80)}
+.pill.info{color:oklch(38% 0.11 250);background:oklch(96% 0.03 250);border-color:oklch(87% 0.06 250)}
+.pill.ok{color:var(--accent-ink);background:oklch(96% 0.05 145);border-color:oklch(85% 0.09 145)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;transition:background .14s var(--ease),transform .1s var(--ease)}
+.btn:hover{background:oklch(94% 0.008 250)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn.primary:hover{background:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn.icon{width:32px;padding:0}
+.btn svg{width:14px;height:14px;flex:none}
+.body{display:grid;grid-template-columns:274px minmax(0,1fr) 380px;min-height:0;overflow:hidden}
+.rail{background:var(--surface);overflow-y:auto;overflow-x:hidden;min-height:0;min-width:0;scrollbar-width:thin}
+.rail.left{border-right:1px solid var(--border)}
+.rail.right{border-left:1px solid var(--border)}
+.rail::-webkit-scrollbar{width:9px}
+.rail::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:9px;border:3px solid var(--surface)}
+.group{border-bottom:1px solid var(--border);padding:12px 14px 14px}
+.group h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dimension{display:grid;grid-template-columns:1fr 82px auto;align-items:center;gap:7px;margin:7px 0}
+.dimension label{font-size:12px;font-weight:600}
+.dimension input{width:82px;height:28px;border:1px solid var(--border-strong);border-radius:5px;padding:0 6px;font-family:var(--font-mono);font-size:11px}
+.dimension .unit{width:28px;color:var(--muted);font-family:var(--font-mono);font-size:10px}
+.dimension small{grid-column:1/-1;color:var(--muted);font-size:10.5px;line-height:1.35}
+.conflicts{padding:10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-2);font-size:11.5px;line-height:1.45}
+.conflicts.invalid{border-color:var(--danger);background:oklch(97% 0.025 27);color:oklch(40% 0.13 27)}
+.kflist{display:flex;flex-direction:column}
+.kfitem{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:none;border-left:3px solid transparent;text-align:left;width:100%;transition:background .14s var(--ease)}
+.kfitem:hover{background:var(--surface-2)}
+.kfitem[aria-selected="true"]{background:oklch(94.5% 0.008 250);border-left-color:oklch(28% 0.02 250)}
+.kfitem .s{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700;min-width:52px}
+.kfitem .n{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kfitem .n small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.kfitem .x{opacity:0;border:0;background:none;color:var(--muted);cursor:pointer;padding:3px;border-radius:4px;line-height:0;transition:opacity .14s var(--ease),background .14s var(--ease),color .14s var(--ease)}
+.kfitem:hover .x{opacity:1}
+.kfitem .x:hover{background:oklch(93% 0.05 27);color:oklch(40% 0.16 27)}
+.kfitem .x svg{width:13px;height:13px}
+.stagewrap{display:grid;grid-template-rows:auto 1fr auto;min-height:0;min-width:0;overflow:hidden}
+.stagebar .chipset{min-width:0}
+.stagebar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.chipset{display:flex;flex-wrap:wrap;gap:5px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:5px;border:1px solid var(--border-strong);background:var(--surface);font-size:11.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:background .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease)}
+.chip:hover{background:oklch(94% 0.008 250);color:var(--fg)}
+.chip[aria-pressed="true"]{background:oklch(28% 0.02 250);border-color:oklch(28% 0.02 250);color:oklch(97% 0.005 250)}
+.stage{position:relative;margin:12px;border-radius:10px;background:var(--stage);border:1px solid oklch(38% 0.02 250);overflow:hidden;min-height:0}
+.stage canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.stage .badge{position:absolute;display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:6px;background:oklch(20% 0.02 250 / .82);backdrop-filter:blur(6px);border:1px solid oklch(42% 0.02 250);color:var(--stage-fg);font-family:var(--font-mono);font-size:11px;font-weight:500}
+.stage .badge.tl{top:10px;left:10px}
+.stage .badge.tr{top:10px;right:10px}
+.legend{position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:6px;background:oklch(20% 0.02 250 / .82);backdrop-filter:blur(6px);border:1px solid oklch(42% 0.02 250)}
+.legend span{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--stage-muted);font-family:var(--font-mono)}
+.legend i{width:14px;height:2px;border-radius:2px;flex:none}
+.hint-strip{position:absolute;bottom:10px;left:10px;padding:6px 10px;border-radius:6px;background:oklch(20% 0.02 250 / .82);backdrop-filter:blur(6px);border:1px solid oklch(42% 0.02 250);color:var(--stage-muted);font-size:11px}
+.hint-strip kbd{font-family:var(--font-mono);font-size:10px;background:oklch(32% 0.02 250);border:1px solid oklch(45% 0.02 250);border-radius:3px;padding:1px 4px;color:var(--stage-fg)}
+.dtrack{border-top:1px solid var(--border);background:var(--surface);padding:10px 12px 12px}
+.dhead{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.dbar{position:relative;height:64px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);overflow:hidden}
+.dbar .lip{position:absolute;top:0;bottom:16px;width:2px;background:oklch(35% 0.02 250)}
+.dbar .liplabel{position:absolute;top:3px;font-family:var(--font-mono);font-size:9.5px;color:var(--muted);transform:translateX(4px)}
+.dbar .kfm{position:absolute;top:20px;width:11px;height:11px;background:var(--surface);border:1.6px solid oklch(35% 0.02 250);transform:translateX(-50%) rotate(45deg);border-radius:1px;cursor:grab;transition:transform .12s var(--ease),background .14s var(--ease)}
+.dbar .kfm:hover{background:oklch(35% 0.02 250);transform:translateX(-50%) rotate(45deg) scale(1.18)}
+.dbar .kfm.sel{background:var(--accent);border-color:var(--accent-ink)}
+.dbar .ruler{position:absolute;left:0;right:0;bottom:0;height:16px;border-top:1px solid var(--border);background:var(--surface)}
+.dbar .tick{position:absolute;bottom:1px;font-family:var(--font-mono);font-size:9.5px;color:var(--muted);transform:translateX(-50%)}
+.dbar svg{position:absolute;inset:0 0 16px 0;width:100%;height:calc(100% - 16px)}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;text-align:right;padding:7px 8px;border-bottom:1px solid var(--border-strong);white-space:nowrap}
+th:first-child{text-align:left}
+td{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px;text-align:right;padding:6px 8px;border-bottom:1px solid var(--border)}
+td:first-child{text-align:left;font-family:var(--font-body);font-size:12.5px;font-weight:500}
+tbody tr:hover{background:var(--surface-2)}
+td.err-hi{color:oklch(45% 0.16 27);font-weight:700}
+td.sat{color:oklch(40% 0.1 70);font-weight:700}
+.jslider{display:grid;grid-template-columns:78px 1fr 62px;align-items:center;gap:9px;padding:5px 0}
+.jslider label{font-size:12.5px;font-weight:500}
+.jslider .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:11.5px;text-align:right;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:none;cursor:pointer;display:block}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:var(--border-strong)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--border-strong)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-4.5px;border-radius:50%;background:var(--fg);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--fg)}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--fg);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--fg)}
+.warnrow{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:6px;background:oklch(97% 0.035 85);border:1px solid oklch(88% 0.07 80);font-size:11.5px;line-height:1.45;color:oklch(35% 0.09 70);margin-top:10px}
+.warnrow svg{width:14px;height:14px;flex:none;margin-top:1px}
+.note{font-size:11.5px;line-height:1.45;color:var(--muted);margin-top:9px;padding-left:9px;border-left:1px solid var(--border-strong)}
+select{height:28px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);padding:0 8px;font-size:12.5px;font-weight:500;cursor:pointer}
+@media (max-width:1280px){.body,.app[data-mode="bike"] .body{grid-template-columns:244px minmax(0,1fr) 336px}}
+@media (max-width:1000px){.app{height:auto;min-height:100vh}.body,.app[data-mode="bike"] .body{grid-template-columns:1fr;overflow:visible}.rail{overflow:visible}.stagewrap{min-height:560px;order:-1}.topbar{height:auto;min-height:52px;flex-wrap:wrap}.nav{overflow-x:auto}.modebar{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="app" data-mode="pose" data-od-id="designer-page">
+  <header class="topbar" data-od-id="topbar">
+    <a class="mark" href="index.html">JUMP LAB <span class="v">2D · v0.4</span></a>
+    <nav class="nav" aria-label="Primary">
+      <a href="workbench.html">Workbench</a>
+      <a href="designer.html" aria-current="page">Designer</a>
+      <a href="run-report.html">Report</a>
+      <a href="scenario-library.html">Library</a>
+      <a href="validation.html">Validation</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="pill" data-od-id="clip-name"><span class="dot"></span>clip: preload-extend · 5 keyframes</span>
+    <span class="pill info" id="satPill" data-od-id="saturation-pill"><span class="dot"></span>0 saturated joints</span>
+    <button class="btn primary" id="applyBtn" data-od-id="apply-clip">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.4 6.4 12 13 4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Apply to run
+    </button>
+  </header>
+
+  <div class="modebar" data-od-id="designer-mode">
+    <strong>Bike and Pose Designer</strong>
+    <div class="modes" role="radiogroup" aria-label="Designer mode">
+      <label><input type="radio" name="designerMode" value="bike">Bike</label>
+      <label><input type="radio" name="designerMode" value="pose" checked>Pose</label>
+    </div>
+    <span class="pill ok" id="designStatus" role="status" aria-live="polite"><span class="dot"></span>Design valid</span>
+    <span class="spacer"></span>
+    <select id="designState" aria-label="Prototype validation state">
+      <option value="valid">Valid</option><option value="pending">Draft pending</option><option value="invalid">Draft invalid</option><option value="pose-invalid">Pose conflicts</option><option value="error">Gateway error</option>
+    </select>
+  </div>
+
+  <div class="body">
+    <!-- keyframes -->
+    <aside class="rail left" data-od-id="keyframe-rail" aria-label="Pose keyframes">
+      <div class="bike-only" data-od-id="bike-geometry-rail">
+        <div class="group"><h3>Wheels &amp; frame</h3><div class="dimension"><label for="wheelSize">Wheel size</label><input id="wheelSize" data-od-id="bike-dimension-wheelSize" type="number" value="29" min="26" max="29" step="1"><span class="unit">in</span><small>Nominal tire diameter · 26, 27.5, or 29 in</small></div><div class="dimension"><label for="wheelbase">Wheelbase</label><input id="wheelbase" data-od-id="bike-dimension-wheelbase" type="number" value="1250" min="800" max="1500" step="1"><span class="unit">mm</span><small>Rear-to-front axle distance · 800–1500 mm</small></div><div class="dimension"><label for="chainstay">Chainstay</label><input id="chainstay" data-od-id="bike-dimension-chainstay" type="number" value="440" min="300" max="650" step="1"><span class="unit">mm</span><small>Rear axle to bottom bracket · 300–650 mm</small></div><div class="dimension"><label for="bbHeight">BB height</label><input id="bbHeight" data-od-id="bike-dimension-bbHeight" type="number" value="330" min="200" max="500" step="1"><span class="unit">mm</span><small>Bottom bracket above the wheel ground line</small></div></div>
+        <div class="group"><h3>Fit</h3><div class="dimension"><label for="reach">Reach</label><input id="reach" data-od-id="bike-dimension-reach" type="number" value="470" min="300" max="600"><span class="unit">mm</span><small>BB to head-tube top, horizontal</small></div><div class="dimension"><label for="stack">Stack</label><input id="stack" data-od-id="bike-dimension-stack" type="number" value="630" min="450" max="800"><span class="unit">mm</span><small>BB to head-tube top, vertical</small></div><div class="dimension"><label for="seatTubeLength">Seat tube</label><input id="seatTubeLength" data-od-id="bike-dimension-seatTubeLength" type="number" value="322" min="250" max="650"><span class="unit">mm</span><small>BB to frame seat-tube top</small></div><div class="dimension"><label for="seatAngle">Seat angle</label><input id="seatAngle" data-od-id="bike-dimension-seatTubeAngle" type="number" value="76" min="60" max="83" step="0.1"><span class="unit">deg</span><small>Seat axis from forward horizontal</small></div></div>
+        <div class="group"><h3>Steering &amp; fork</h3><div class="dimension"><label for="headTubeLength">Head tube</label><input id="headTubeLength" data-od-id="bike-dimension-headTubeLength" type="number" value="110" min="60" max="250"><span class="unit">mm</span><small>Steering-axis tube length</small></div><div class="dimension"><label for="headAngle">Head angle</label><input id="headAngle" data-od-id="bike-dimension-headTubeAngle" type="number" value="65" min="50" max="80" step="0.1"><span class="unit">deg</span><small>Steering axis from forward horizontal</small></div><div class="dimension"><label for="forkLength">Fork length</label><input id="forkLength" data-od-id="bike-dimension-forkLength" type="number" value="571" min="300" max="650"><span class="unit">mm</span><small>Crown to front axle along steering assembly</small></div><div class="dimension"><label for="forkOffset">Fork offset</label><input id="forkOffset" data-od-id="bike-dimension-forkOffset" type="number" value="50" min="0" max="100"><span class="unit">mm</span><small>Front-axle offset perpendicular to steering axis</small></div></div>
+        <div class="group"><h3>Saddle, crank &amp; cockpit</h3><div class="dimension"><label for="saddleHeight">Saddle height</label><input id="saddleHeight" data-od-id="bike-dimension-saddleHeight" type="number" value="460" min="300" max="900"><span class="unit">mm</span><small>BB to saddle center along seat axis</small></div><div class="dimension"><label for="saddleSetback">Saddle setback</label><input id="saddleSetback" data-od-id="bike-dimension-saddleSetback" type="number" value="0" min="-150" max="250"><span class="unit">mm</span><small>Rearward offset from the seat axis</small></div><div class="dimension"><label for="crankLength">Crank length</label><input id="crankLength" data-od-id="bike-dimension-crankLength" type="number" value="170" min="145" max="190"><span class="unit">mm</span><small>BB to pedal contact</small></div><div class="dimension"><label for="barX">Bar offset X</label><input id="barX" data-od-id="bike-dimension-handlebarOffsetX" type="number" value="50" min="-100" max="300"><span class="unit">mm</span><small>Grip forward of head-tube top</small></div><div class="dimension"><label for="barY">Bar offset Y</label><input id="barY" data-od-id="bike-dimension-handlebarOffsetY" type="number" value="30" min="-150" max="250"><span class="unit">mm</span><small>Grip above the head-tube top</small></div></div>
+        <div class="group"><h3>Mass &amp; suspension</h3><div class="dimension"><label for="frameType">Frame type</label><select id="frameType" data-od-id="bike-dimension-frameType"><option>Rigid</option><option selected>Hardtail</option><option>Full suspension</option></select><span class="unit"></span><small>Rear shock is available only for full suspension</small></div><div class="dimension"><label for="bikeMass">Bike mass</label><input id="bikeMass" data-od-id="bike-dimension-mass" type="number" value="14" min="5" max="30" step="0.1"><span class="unit">kg</span><small>Authored total mass; geometry changes its distribution</small></div><div class="dimension"><label for="forkTravel">Fork travel</label><input id="forkTravel" data-od-id="bike-dimension-forkTravel" type="number" value="150" min="0" max="250"><span class="unit">mm</span><small>Existing suspension travel configuration</small></div><div class="dimension"><label for="forkSag">Fork sag</label><input id="forkSag" data-od-id="bike-dimension-forkSag" type="number" value="35" min="0" max="120"><span class="unit">mm</span><small>Existing static suspension sag</small></div></div>
+      </div>
+      <div class="pose-only">
+      <div class="group" style="padding-bottom:10px">
+        <h3>Keyframes <span class="num" style="font-size:10px;letter-spacing:0;text-transform:none">distance-relative</span></h3>
+        <div class="note" style="margin-top:0">Keyframes are anchored to <strong>s</strong>, the along-track distance from the lip — not to time. A speed change re-times the clip without re-authoring it.</div>
+      </div>
+      <div class="kflist" id="kflist" role="listbox" aria-label="Keyframe list"></div>
+      <div class="group" style="border-bottom:0">
+        <button class="btn" id="addKf" style="width:100%" data-od-id="add-keyframe">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3.5v9M3.5 8h9" stroke-linecap="round"/></svg>
+          Add keyframe at playhead
+        </button>
+      </div>
+      <div class="group">
+        <h3>Interpolation</h3>
+        <select id="interp" data-od-id="interp-mode" style="width:100%">
+          <option value="cubic">Cubic Hermite (C¹ continuous)</option>
+          <option value="linear">Linear</option>
+          <option value="step">Step (hold)</option>
+        </select>
+        <div class="note">Targets feed finite PD motors. Interpolation smooths the <em>target</em>; the achieved pose still lags by the motor's own dynamics.</div>
+      </div>
+      </div>
+    </aside>
+
+    <!-- stage -->
+    <main class="stagewrap">
+      <div class="stagebar" data-od-id="pose-overlay-bar">
+        <div class="chipset" role="group" aria-label="Pose overlays">
+          <button class="chip" data-ov="target" aria-pressed="true">Target pose</button>
+          <button class="chip" data-ov="achieved" aria-pressed="true">Achieved pose</button>
+          <button class="chip" data-ov="limits" aria-pressed="true">Joint limits</button>
+          <button class="chip" data-ov="com" aria-pressed="true">COM</button>
+          <button class="chip" data-ov="handles" aria-pressed="true">Drag handles</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn" id="mirrorBtn" data-od-id="reset-pose">Reset to neutral</button>
+      </div>
+
+      <div class="stage" data-od-id="designer-canvas">
+        <canvas id="pv" data-od-id="pose-canvas" aria-label="Bike and rider Designer preview"></canvas>
+        <div class="badge tl">s = <span id="badgeS">−1.20</span> m · <span id="badgeName">compress</span></div>
+        <div class="badge tr">kp <span id="badgeKp">220</span> · kd <span id="badgeKd">18</span> N·m/rad</div>
+        <div class="hint-strip" data-od-id="canvas-hint">Drag the <kbd>hip</kbd> or <kbd>shoulder</kbd> handle to reshape the pose · arms follow the bar constraint</div>
+        <div class="legend">
+          <span><i style="background:oklch(80% 0.14 145)"></i>target</span>
+          <span><i style="background:oklch(78% 0.02 250)"></i>achieved</span>
+          <span><i style="background:oklch(78% 0.13 75)"></i>limit reached</span>
+        </div>
+      </div>
+
+      <div class="dtrack pose-only" data-od-id="distance-track">
+        <div class="dhead">
+          <span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700">Along-track distance</span>
+          <span class="spacer"></span>
+          <span class="num" style="font-size:12px;color:var(--muted)">hip &amp; spine flexion channels</span>
+        </div>
+        <div class="dbar" id="dbar">
+          <svg id="curves" viewBox="0 0 1000 48" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="ruler" id="druler"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- joint table -->
+    <aside class="rail right" data-od-id="joint-rail" aria-label="Joint targets">
+      <div class="bike-only">
+        <div class="group" data-od-id="bike-derived-rail"><h3>Derived geometry</h3><table><tbody><tr><td>Closure residual</td><td>4 mm</td></tr><tr><td>Bike CoG</td><td>(−0.04, 0.39) m</td></tr><tr><td>Planar inertia</td><td>2.81 kg·m²</td></tr><tr><td>Models</td><td>geometry 1 · mass 1</td></tr></tbody></table><div class="note">The bicycle is scenario-level and static. Selecting pose keys cannot change these values.</div></div>
+        <div class="group"><h3>Design conflicts</h3><div class="conflicts" id="conflicts" data-od-id="design-conflict-summary" tabindex="-1">No blocking geometry or pose-key conflicts. Apply to Run is available.</div><div class="note" id="applyReason">All authored keys clear the canonical bicycle.</div></div>
+      </div>
+      <div class="pose-only">
+      <div class="group">
+        <h3>Joint targets <span class="num" style="font-size:10px;text-transform:none;letter-spacing:0">at s = <span id="jtS">−1.20</span> m</span></h3>
+        <table data-od-id="joint-table">
+          <thead><tr><th>Joint</th><th>Target</th><th>Achieved</th><th>Error</th><th>τ limit</th></tr></thead>
+          <tbody id="jtbody"></tbody>
+        </table>
+        <div id="satWarn"></div>
+      </div>
+
+      <div class="group">
+        <h3>Edit pose</h3>
+        <div id="jsliders"></div>
+      </div>
+
+      <div class="group">
+        <h3>Range of motion <span class="num" style="font-size:10px;text-transform:none;letter-spacing:0">coach-reviewed</span></h3>
+        <table data-od-id="rom-table">
+          <thead><tr><th>Joint</th><th>Min</th><th>Max</th><th>τ max</th></tr></thead>
+          <tbody id="romBody"></tbody>
+        </table>
+        <div class="note">Limits are hard constraints on the joint, not soft penalties. A target outside the range is clamped and flagged rather than silently pulled in.</div>
+      </div>
+
+      <div class="group" style="border-bottom:0">
+        <h3>Clip summary</h3>
+        <table>
+          <tbody>
+            <tr><td>Span</td><td id="sumSpan">—</td></tr>
+            <tr><td>Keyframes</td><td id="sumKf">—</td></tr>
+            <tr><td>Peak hip travel</td><td id="sumHip">—</td></tr>
+            <tr><td>Peak target rate</td><td id="sumRate">—</td></tr>
+          </tbody>
+        </table>
+        <div class="note">Peak target rate is the fastest commanded joint velocity in the clip. Above roughly 9 rad/s a human hip cannot follow it, and the PD motor will saturate no matter how the gains are tuned.</div>
+      </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const DEG=Math.PI/180, $=id=>document.getElementById(id);
+const app=document.querySelector('.app');
+document.querySelectorAll('input[name="designerMode"]').forEach(input=>input.addEventListener('change',()=>{
+  app.dataset.mode=input.value;
+  requestAnimationFrame(fit);
+}));
+const stateCopy={
+  valid:['Design valid','No blocking geometry or pose-key conflicts. Apply to Run is available.','All authored keys clear the canonical bicycle.'],
+  pending:['Draft pending','Inspecting the latest measured geometry. The last stable preview remains visible.','Apply disabled while geometry inspection is pending.'],
+  invalid:['Draft invalid','Steering closure exceeds 10 mm. Focus Fork length to correct the geometry.','Apply disabled by a geometry conflict.'],
+  'pose-invalid':['Pose conflicts','Pose key 3: pelvis intersects top tube. Select the affected keyframe.','Apply disabled until every authored pose key is valid.'],
+  error:['Gateway error','Geometry inspection failed. The last stable preview remains visible.','Apply disabled until Designer validation recovers.']
+};
+$('designState').addEventListener('change',event=>{
+  const [status,conflict,reason]=stateCopy[event.target.value];
+  $('designStatus').className=event.target.value==='valid'?'pill ok':'pill warn';
+  $('designStatus').innerHTML='<span class="dot"></span>'+status;
+  $('conflicts').textContent=conflict;
+  $('conflicts').className=event.target.value==='invalid'||event.target.value==='pose-invalid'?'conflicts invalid':'conflicts';
+  $('applyReason').textContent=reason;
+  $('applyBtn').disabled=event.target.value!=='valid';
+});
+/* joints: angle conventions in degrees, flexion positive.
+   ankle/knee/hip/spine are authored DOFs; shoulder/elbow are derived from the
+   hand-to-handlebar constraint, matching the physical model where the rider's
+   hands are pinned to the bars rather than posed freely. */
+const JOINTS=[
+  {id:'ankle',   name:'Ankle',    min:-25, max:35,  tau:120},
+  {id:'knee',    name:'Knee',     min:5,   max:135, tau:260},
+  {id:'hip',     name:'Hip',      min:-10, max:120, tau:310},
+  {id:'spine',   name:'Spine',    min:-15, max:55,  tau:190},
+  {id:'shoulder',name:'Shoulder', min:-20, max:110, tau:140, derived:true},
+  {id:'elbow',   name:'Elbow',    min:5,   max:130, tau:95,  derived:true}
+];
+const NEUTRAL={ankle:8, knee:34, hip:46, spine:22, shoulder:34, elbow:38};
+function pose(o){ return Object.assign({}, NEUTRAL, o||{}); }
+/* 2-link inverse kinematics: place the middle joint of an a→b chain */
+function ik(a, b, l1, l2, sign){
+  const dx=b[0]-a[0], dy=b[1]-a[1];
+  let d=Math.hypot(dx,dy);
+  d=Math.min(d,(l1+l2)*0.999); d=Math.max(d, Math.abs(l1-l2)+1e-4);
+  const ang=Math.atan2(dy,dx);
+  const cosA=(d*d+l1*l1-l2*l2)/(2*d*l1);
+  const th=ang+sign*Math.acos(Math.max(-1,Math.min(1,cosA)));
+  return [a[0]+l1*Math.cos(th), a[1]+l1*Math.sin(th)];
+}
+
+/* distance-relative clip: s in metres from lip (negative = before) */
+let KF=[
+  {s:-3.20, name:'entry',      note:'ready position',        p:pose({})},
+  {s:-1.20, name:'compress',   note:'load the transition',   p:pose({knee:74, hip:88, spine:40, ankle:18, elbow:62, shoulder:52})},
+  {s:-0.35, name:'extend',     note:'drive through the lip', p:pose({knee:14, hip:16, spine:8,  ankle:-14, elbow:16, shoulder:14})},
+  {s: 0.90, name:'air-neutral',note:'settle in the air',     p:pose({knee:42, hip:52, spine:24, elbow:44, shoulder:36})},
+  {s: 2.40, name:'absorb',     note:'prepare for impact',    p:pose({knee:62, hip:74, spine:34, ankle:14, elbow:56, shoulder:46})}
+];
+let sel=1, interp='cubic';
+const OV={target:true, achieved:true, limits:true, com:true, handles:true};
+const KP=220, KD=18;
+
+/* ---- interpolation + achieved-pose model ---------------------------- */
+function sampleTarget(s){
+  const out={};
+  for(const j of JOINTS){
+    const xs=KF.map(k=>k.s), ys=KF.map(k=>k.p[j.id]);
+    out[j.id]=interpAt(xs, ys, s);
+  }
+  return out;
+}
+function interpAt(xs, ys, s){
+  if(s<=xs[0]) return ys[0];
+  if(s>=xs[xs.length-1]) return ys[ys.length-1];
+  let i=0; while(i<xs.length-2 && s>xs[i+1]) i++;
+  const t=(s-xs[i])/(xs[i+1]-xs[i]);
+  if(interp==='step') return ys[i];
+  if(interp==='linear') return ys[i]+t*(ys[i+1]-ys[i]);
+  const m0=(ys[Math.min(i+1,ys.length-1)]-ys[Math.max(i-1,0)])/2;
+  const m1=(ys[Math.min(i+2,ys.length-1)]-ys[i])/2;
+  const t2=t*t, t3=t2*t;
+  return (2*t3-3*t2+1)*ys[i] + (t3-2*t2+t)*m0 + (-2*t3+3*t2)*ys[i+1] + (t3-t2)*m1;
+}
+/* achieved pose: integrate a 2nd-order PD motor along the clip at 4 mm steps,
+   with hard torque saturation at the joint limit. Real integration, real error. */
+/* achieved pose: integrate a 2nd-order PD motor for each AUTHORED joint along
+   the clip at 4 mm steps, with hard torque saturation at the joint limit. The
+   arm is not chased — it is re-solved from the achieved body through the
+   handlebar constraint, so its error is a consequence of the body's lag. */
+function achievedTrack(){
+  const s0=KF[0].s, s1=KF[KF.length-1].s, v=8.9, ds=0.004, dt=ds/v;
+  const state={}, track=[];
+  const authored=JOINTS.filter(j=>!j.derived);
+  for(const j of authored) state[j.id]={q:KF[0].p[j.id]*DEG, w:0};
+  const I={ankle:0.06, knee:0.35, hip:0.9, spine:1.4};
+  let peakRate=0, prev=sampleTarget(s0);
+  for(let s=s0; s<=s1+1e-9; s+=ds){
+    const tgt=sampleTarget(s), row={s, tgt:{}, ach:{}, tau:{}, sat:{}};
+    for(const j of authored){
+      const st=state[j.id], q=st.q, qd=tgt[j.id]*DEG;
+      let tau=KP*(qd-q) - KD*st.w;
+      const sat=Math.abs(tau)>j.tau;
+      if(sat) tau=Math.sign(tau)*j.tau;
+      st.w += tau/I[j.id]*dt;
+      st.w *= 0.965;                        // structural damping of the segment
+      st.q += st.w*dt;
+      st.q = Math.max(j.min*DEG, Math.min(j.max*DEG, st.q));
+      row.tgt[j.id]=tgt[j.id]; row.ach[j.id]=st.q/DEG; row.tau[j.id]=tau; row.sat[j.id]=sat;
+      const rate=Math.abs(tgt[j.id]-prev[j.id])*DEG/dt;
+      if(rate>peakRate) peakRate=rate;
+    }
+    const tD=derivedArm(figure(tgt)), aD=derivedArm(figure(row.ach));
+    for(const id of ['shoulder','elbow']){
+      row.tgt[id]=tD[id]; row.ach[id]=aD[id]; row.tau[id]=0; row.sat[id]=false;
+    }
+    prev=tgt; track.push(row);
+  }
+  return {track, peakRate};
+}
+let TRACK=null;
+function rowAt(s){
+  const t=TRACK.track;
+  let lo=0, hi=t.length-1;
+  while(lo<hi){ const mid=(lo+hi)>>1; if(t[mid].s<s) lo=mid+1; else hi=mid; }
+  return t[Math.max(0,Math.min(t.length-1,lo))];
+}
+
+/* ---- figure geometry -------------------------------------------------
+   Feet are pinned to the pedal at the origin and hands are pinned to the
+   handlebar at BAR. The leg is solved from knee flexion by the law of
+   cosines, then the knee is placed by 2-link IK; the arm is solved by
+   2-link IK from the shoulder to the fixed bar. Shoulder and elbow angles
+   are therefore consequences of the constraint, not free inputs. */
+const H=1.78, legU=H*0.245, legL=H*0.246, torso=H*0.30, armU=H*0.186, armL=H*0.146;
+const BAR=[0.60, 1.05];
+function figure(p){
+  const foot=[0,0];
+  const d=Math.sqrt(legU*legU+legL*legL-2*legU*legL*Math.cos(Math.PI-p.knee*DEG));
+  const dir=(90+p.ankle*0.6)*DEG;
+  const hip=[foot[0]+d*Math.cos(dir), foot[1]+d*Math.sin(dir)];
+  const knee=ik(foot, hip, legL, legU, -1);
+  const spineA=(90-p.spine-(p.hip-46)*0.35)*DEG;
+  const shoulder=[hip[0]+torso*Math.cos(spineA), hip[1]+torso*Math.sin(spineA)];
+  const hand=BAR;
+  const elbow=ik(shoulder, hand, armU, armL, -1);
+  const head=[shoulder[0]+0.05*Math.cos(spineA)+0.05, shoulder[1]+0.17];
+  const com=[(hip[0]*0.42+shoulder[0]*0.33+knee[0]*0.15+elbow[0]*0.10),
+             (hip[1]*0.42+shoulder[1]*0.33+knee[1]*0.15+elbow[1]*0.10)];
+  return {foot,knee,hip,shoulder,elbow,hand,head,com,reach:Math.hypot(hand[0]-shoulder[0],hand[1]-shoulder[1])};
+}
+function angBetween(a,b){
+  const d=(a[0]*b[0]+a[1]*b[1])/((Math.hypot(a[0],a[1])*Math.hypot(b[0],b[1]))||1);
+  return Math.acos(Math.max(-1,Math.min(1,d)))/DEG;
+}
+/* shoulder flexion measured from the arm-alongside-torso reference;
+   elbow flexion measured from a straight arm. Both land in the ROM ranges. */
+function derivedArm(f){
+  const torsoDown=[f.hip[0]-f.shoulder[0], f.hip[1]-f.shoulder[1]];
+  const upper=[f.elbow[0]-f.shoulder[0], f.elbow[1]-f.shoulder[1]];
+  const back=[f.shoulder[0]-f.elbow[0], f.shoulder[1]-f.elbow[1]];
+  const fore=[f.hand[0]-f.elbow[0], f.hand[1]-f.elbow[1]];
+  return {shoulder:angBetween(torsoDown,upper), elbow:180-angBetween(back,fore)};
+}
+function withDerived(p){
+  const d=derivedArm(figure(p));
+  return Object.assign({}, p, {shoulder:d.shoulder, elbow:d.elbow});
+}
+
+/* ---- canvas --------------------------------------------------------- */
+const pv=$('pv'), c=pv.getContext('2d');
+let PXM=190, ORG=[0,0];
+function fit(){
+  const r=pv.parentElement.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  pv.width=Math.round(r.width*dpr); pv.height=Math.round(r.height*dpr);
+  c.setTransform(dpr,0,0,dpr,0,0);
+  PXM=Math.min(r.height*0.52, r.width*0.30);
+  ORG=[r.width*0.46, r.height*0.86];
+  paint();
+}
+const X=x=>ORG[0]+x*PXM, Y=y=>ORG[1]-y*PXM;
+function seg(a,b,col,w){ c.beginPath(); c.moveTo(X(a[0]),Y(a[1])); c.lineTo(X(b[0]),Y(b[1])); c.strokeStyle=col; c.lineWidth=w; c.lineCap='round'; c.stroke(); c.lineCap='butt'; }
+function inputM(id){ return parseFloat($(id).value)/1000; }
+function drawBike(){
+  const radius=parseFloat($('wheelSize').value)*0.0127;
+  const bb=[-inputM('crankLength'),inputM('bbHeight')];
+  const rear=[bb[0]-Math.sqrt(Math.max(0,inputM('chainstay')**2-(bb[1]-radius)**2)),radius];
+  const front=[rear[0]+inputM('wheelbase'),radius];
+  const headTop=[bb[0]+inputM('reach'),bb[1]+inputM('stack')];
+  const headAngle=parseFloat($('headAngle').value)*DEG;
+  const headBottom=[headTop[0]+inputM('headTubeLength')*Math.cos(headAngle),headTop[1]-inputM('headTubeLength')*Math.sin(headAngle)];
+  const seatAngle=parseFloat($('seatAngle').value)*DEG;
+  const seatTop=[bb[0]-inputM('seatTubeLength')*Math.cos(seatAngle),bb[1]+inputM('seatTubeLength')*Math.sin(seatAngle)];
+  c.strokeStyle='oklch(67% 0.02 250)'; c.lineWidth=3;
+  for(const wheel of [rear,front]){ c.beginPath(); c.arc(X(wheel[0]),Y(wheel[1]),radius*PXM,0,7); c.stroke(); }
+  seg(rear,bb,'oklch(72% 0.03 250)',3); seg(rear,seatTop,'oklch(72% 0.03 250)',3);
+  seg(bb,seatTop,'oklch(72% 0.03 250)',3); seg(seatTop,headTop,'oklch(72% 0.03 250)',3);
+  seg(bb,headBottom,'oklch(72% 0.03 250)',3); seg(headTop,headBottom,'oklch(72% 0.03 250)',4);
+  seg(headBottom,front,'oklch(74% 0.05 75)',4); seg(bb,[0,0],'oklch(78% 0.08 145)',3);
+  seg([seatTop[0]-.07,seatTop[1]],[seatTop[0]+.07,seatTop[1]],'oklch(78% 0.08 145)',5);
+  seg(headTop,BAR,'oklch(78% 0.08 145)',3);
+}
+function drawFigure(f,col,w,alpha){
+  c.save(); c.globalAlpha=alpha;
+  seg(f.foot,f.knee,col,w); seg(f.knee,f.hip,col,w); seg(f.hip,f.shoulder,col,w);
+  seg(f.shoulder,f.elbow,col,w); seg(f.elbow,f.hand,col,w);
+  c.beginPath(); c.arc(X(f.head[0]),Y(f.head[1]),0.10*PXM,0,7); c.fillStyle=col; c.fill();
+  c.restore();
+}
+function paint(){
+  const r=pv.getBoundingClientRect();
+  c.clearRect(0,0,r.width,r.height);
+  c.fillStyle='oklch(24% 0.025 250)'; c.fillRect(0,0,r.width,r.height);
+  // grid + ground
+  c.lineWidth=1;
+  for(let gx=-3;gx<=3;gx+=0.25){ c.strokeStyle = Math.abs(gx%1)<1e-6?'oklch(33% 0.02 250)':'oklch(28% 0.018 250)';
+    c.beginPath(); c.moveTo(X(gx),0); c.lineTo(X(gx),r.height); c.stroke(); }
+  for(let gy=0;gy<=2.2;gy+=0.25){ c.strokeStyle = Math.abs(gy%1)<1e-6?'oklch(33% 0.02 250)':'oklch(28% 0.018 250)';
+    c.beginPath(); c.moveTo(0,Y(gy)); c.lineTo(r.width,Y(gy)); c.stroke();
+    if(Math.abs(gy%0.5)<1e-6){ c.font='500 9px "JetBrains Mono",monospace'; c.fillStyle='oklch(50% 0.02 250)'; c.fillText(gy.toFixed(2)+' m', 8, Y(gy)-3); } }
+  c.strokeStyle='oklch(58% 0.03 250)'; c.lineWidth=1.6;
+  c.beginPath(); c.moveTo(0,Y(0)); c.lineTo(r.width,Y(0)); c.stroke();
+  drawBike();
+  // contact anchors: pedal + bar
+  const k=KF[sel], row=rowAt(k.s);
+  const tPose=withDerived(sampleTarget(k.s));
+  const tf=figure(tPose), af=figure(row.ach);
+  c.font='500 9.5px "JetBrains Mono",monospace';
+  for(const [pt,label,dx] of [[tf.foot,'PEDAL (pinned)',9],[BAR,'HANDLEBAR (pinned)',9]]){
+    c.beginPath(); c.arc(X(pt[0]),Y(pt[1]),5,0,7);
+    c.strokeStyle='oklch(74% 0.02 250)'; c.lineWidth=1.8; c.stroke();
+    c.fillStyle='oklch(64% 0.02 250)'; c.fillText(label, X(pt[0])+dx, Y(pt[1])+3);
+  }
+  if(OV.achieved) drawFigure(af,'oklch(78% 0.02 250)',7,0.5);
+  if(OV.target)   drawFigure(tf,'oklch(80% 0.14 145)',4.5,1);
+  // limit flags — authored DOFs only; derived arm angles cannot leave their range
+  if(OV.limits){
+    for(const j of JOINTS){
+      if(j.derived) continue;
+      const v=tPose[j.id];
+      if(v<=j.min+0.5 || v>=j.max-0.5){
+        const pt={ankle:tf.foot,knee:tf.knee,hip:tf.hip,spine:tf.shoulder}[j.id];
+        c.beginPath(); c.arc(X(pt[0]),Y(pt[1]),9,0,7); c.strokeStyle='oklch(78% 0.13 75)'; c.lineWidth=2; c.stroke();
+      }
+    }
+  }
+  if(OV.com){
+    c.beginPath(); c.arc(X(tf.com[0]),Y(tf.com[1]),6,0,7);
+    c.strokeStyle='oklch(84% 0.10 200)'; c.lineWidth=2; c.stroke();
+    c.beginPath(); c.moveTo(X(tf.com[0])-9,Y(tf.com[1])); c.lineTo(X(tf.com[0])+9,Y(tf.com[1]));
+    c.moveTo(X(tf.com[0]),Y(tf.com[1])-9); c.lineTo(X(tf.com[0]),Y(tf.com[1])+9); c.stroke();
+    c.fillStyle='oklch(84% 0.10 200)'; c.font='500 9.5px "JetBrains Mono",monospace';
+    c.fillText('COM '+tf.com[1].toFixed(3)+' m', X(tf.com[0])+12, Y(tf.com[1])-6);
+  }
+  if(OV.handles){
+    for(const pt of [tf.hip, tf.shoulder]){
+      c.beginPath(); c.rect(X(pt[0])-6,Y(pt[1])-6,12,12);
+      c.fillStyle='oklch(24% 0.025 250)'; c.fill();
+      c.strokeStyle='oklch(80% 0.14 145)'; c.lineWidth=2; c.stroke();
+    }
+  }
+  $('badgeS').textContent=(k.s<0?'−':'')+Math.abs(k.s).toFixed(2);
+  $('badgeName').textContent=k.name;
+  $('badgeKp').textContent=KP; $('badgeKd').textContent=KD;
+}
+
+/* drag handles: hip height ⇒ knee+hip flexion, shoulder ⇒ spine+shoulder */
+let drag=null;
+pv.addEventListener('pointerdown',e=>{
+  const r=pv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  const tf=figure(sampleTarget(KF[sel].s));
+  for(const [pt,id] of [[tf.hip,'hip'],[tf.shoulder,'shoulder']]){
+    if(Math.hypot(mx-X(pt[0]), my-Y(pt[1]))<14){ drag={id, my, start:{...KF[sel].p}}; pv.setPointerCapture(e.pointerId); pv.style.cursor='grabbing'; return; }
+  }
+});
+pv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const r=pv.getBoundingClientRect(), my=e.clientY-r.top;
+  const d=(my-drag.my)/PXM*100;                    // downward drag ⇒ more flexion
+  const p=KF[sel].p, s=drag.start;
+  if(drag.id==='hip'){
+    p.knee =clampJ('knee',  s.knee  + d*1.35);
+    p.hip  =clampJ('hip',   s.hip   + d*1.25);
+    p.ankle=clampJ('ankle', s.ankle + d*0.35);
+  }else{
+    p.spine=clampJ('spine', s.spine + d*0.9);
+    p.hip  =clampJ('hip',   s.hip   + d*0.7);
+  }
+  refresh(false);
+});
+pv.addEventListener('pointerup',()=>{ drag=null; pv.style.cursor='crosshair'; refresh(true); });
+function clampJ(id,v){ const j=JOINTS.find(x=>x.id===id); return Math.max(j.min, Math.min(j.max, v)); }
+
+/* ---- panels --------------------------------------------------------- */
+function renderKfList(){
+  $('kflist').innerHTML = KF.map((k,i)=>
+    '<div class="kfitem" role="option" tabindex="0" aria-selected="'+(i===sel)+'" data-i="'+i+'">'
+    +'<span class="s">'+(k.s<0?'−':'+')+Math.abs(k.s).toFixed(2)+'</span>'
+    +'<span class="n">'+k.name+'<small>'+k.note+'</small></span>'
+    +'<button type="button" class="x" aria-label="Delete keyframe '+k.name+'" data-del="'+i+'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg></button>'
+    +'</div>').join('');
+  $('kflist').querySelectorAll('.kfitem').forEach(b=>{
+    const pick=()=>{ sel=+b.dataset.i; refresh(false); };
+    b.addEventListener('click',e=>{
+      const del=e.target.closest('[data-del]');
+      if(del){
+        const i=+del.dataset.del;
+        if(KF.length>2){ KF.splice(i,1); sel=Math.min(sel, KF.length-1); refresh(true); }
+        e.stopPropagation(); return;
+      }
+      pick();
+    });
+    b.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pick(); }
+    });
+  });
+}
+function renderJointTable(){
+  const k=KF[sel], tgt=withDerived(sampleTarget(k.s)), row=rowAt(k.s);
+  let satCount=0;
+  $('jtbody').innerHTML = JOINTS.map(j=>{
+    const t=tgt[j.id], a=row.ach[j.id], err=a-t, sat=row.sat[j.id];
+    if(sat) satCount++;
+    return '<tr><td>'+j.name+(j.derived?' <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">IK</span>':'')+'</td>'
+      +'<td>'+t.toFixed(1)+'°</td><td>'+a.toFixed(1)+'°</td>'
+      +'<td class="'+(Math.abs(err)>6?'err-hi':'')+'">'+(err>=0?'+':'−')+Math.abs(err).toFixed(1)+'°</td>'
+      +'<td class="'+(sat?'sat':'')+'">'+(j.derived?'<span style="color:var(--muted)">constraint</span>':j.tau+(sat?' ⚑':''))+'</td></tr>';
+  }).join('');
+  const pill=$('satPill');
+  pill.className = satCount ? 'pill warn' : 'pill ok';
+  pill.innerHTML = '<span class="dot"></span>'+satCount+' saturated joint'+(satCount===1?'':'s');
+  $('satWarn').innerHTML = satCount
+    ? '<div class="warnrow"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 5.5v4M8 11.6h.01M7.1 2.3 1.5 12.2a1 1 0 0 0 .87 1.5h11.26a1 1 0 0 0 .87-1.5L8.9 2.3a1 1 0 0 0-1.8 0z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+satCount+' motor'+(satCount===1?'':'s')+' hit the torque ceiling at this keyframe. The achieved pose will not reach the target — soften the transition or raise the limit in the rider profile.</span></div>'
+    : '';
+  $('jtS').textContent=(k.s<0?'−':'')+Math.abs(k.s).toFixed(2);
+}
+let slidersFor=-1;
+const AUTHORED=JOINTS.filter(j=>!j.derived);
+function renderSliders(){
+  const k=KF[sel], d=derivedArm(figure(k.p));
+  if(slidersFor===sel && $('s_'+AUTHORED[0].id)){
+    AUTHORED.forEach(j=>{ const el=$('s_'+j.id); el.value=k.p[j.id].toFixed(0); $('sv_'+j.id).textContent=Math.round(k.p[j.id])+'°'; });
+    $('derivedArm').innerHTML='Shoulder '+d.shoulder.toFixed(1)+'° · Elbow '+d.elbow.toFixed(1)+'°';
+    return;
+  }
+  slidersFor=sel;
+  $('jsliders').innerHTML = AUTHORED.map(j=>
+    '<div class="jslider"><label for="s_'+j.id+'">'+j.name+'</label>'
+    +'<input type="range" id="s_'+j.id+'" min="'+j.min+'" max="'+j.max+'" step="1" value="'+k.p[j.id].toFixed(0)+'">'
+    +'<span class="v" id="sv_'+j.id+'">'+k.p[j.id].toFixed(0)+'°</span></div>').join('')
+    +'<div class="note" style="margin-top:11px">Arm angles are solved, not posed: <span class="num" id="derivedArm">Shoulder '+d.shoulder.toFixed(1)+'° · Elbow '+d.elbow.toFixed(1)+'°</span>. Moving the hips or spine changes them through the handlebar constraint.</div>';
+  AUTHORED.forEach(j=>{
+    const el=$('s_'+j.id);
+    el.addEventListener('input',()=>{ KF[sel].p[j.id]=parseFloat(el.value); $('sv_'+j.id).textContent=el.value+'°'; refresh(true); });
+  });
+}
+function renderRom(){
+  $('romBody').innerHTML = JOINTS.map(j=>
+    '<tr><td>'+j.name+'</td><td>'+j.min+'°</td><td>'+j.max+'°</td><td>'+j.tau+' N·m</td></tr>').join('');
+}
+function renderTrack(){
+  const s0=KF[0].s, s1=KF[KF.length-1].s, span=s1-s0;
+  const pct=s=>(s-s0)/span*100;
+  const lipPct=pct(0);
+  const marks = KF.map((k,i)=>'<span class="kfm'+(i===sel?' sel':'')+'" style="left:'+pct(k.s)+'%" data-i="'+i+'" title="'+k.name+'"></span>').join('');
+  const ticks=[]; for(let s=Math.ceil(s0); s<=s1; s++) ticks.push('<span class="tick" style="left:'+pct(s)+'%">'+(s<0?'−':'')+Math.abs(s)+' m</span>');
+  $('dbar').querySelectorAll('.kfm,.lip,.liplabel').forEach(n=>n.remove());
+  $('druler').innerHTML=ticks.join('');
+  $('dbar').insertAdjacentHTML('beforeend',
+    (lipPct>=0&&lipPct<=100 ? '<div class="lip" style="left:'+lipPct+'%"></div><span class="liplabel" style="left:'+lipPct+'%">LIP</span>' : '')+marks);
+  $('dbar').querySelectorAll('.kfm').forEach(m=>m.addEventListener('click',()=>{ sel=+m.dataset.i; refresh(false); }));
+  // channel curves: hip and spine flexion, sampled from the target track
+  let d1='', d2='';
+  for(let i=0;i<=200;i++){
+    const s=s0+span*i/200, t=sampleTarget(s);
+    const x=i/200*1000;
+    const y1=44-(t.hip-JOINTS[2].min)/(JOINTS[2].max-JOINTS[2].min)*38;
+    const y2=44-(t.spine-JOINTS[3].min)/(JOINTS[3].max-JOINTS[3].min)*38;
+    d1+=(i?'L':'M')+x.toFixed(1)+' '+y1.toFixed(1);
+    d2+=(i?'L':'M')+x.toFixed(1)+' '+y2.toFixed(1);
+  }
+  $('curves').innerHTML =
+    '<path d="'+d1+'" fill="none" stroke="oklch(45% 0.02 250)" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'
+   +'<path d="'+d2+'" fill="none" stroke="oklch(70% 0.015 250)" stroke-width="1.6" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>';
+}
+function renderSummary(){
+  const s0=KF[0].s, s1=KF[KF.length-1].s;
+  $('sumSpan').textContent=(s1-s0).toFixed(2)+' m';
+  $('sumKf').textContent=KF.length;
+  let lo=1e9, hi=-1e9;
+  for(const r of TRACK.track){ const h=figure(r.tgt).hip[1]; lo=Math.min(lo,h); hi=Math.max(hi,h); }
+  $('sumHip').textContent=((hi-lo)*1000).toFixed(0)+' mm';
+  $('sumRate').textContent=TRACK.peakRate.toFixed(2)+' rad/s';
+}
+function refresh(recompute){
+  if(recompute!==false) TRACK=achievedTrack();
+  renderKfList(); renderJointTable(); renderSliders(); renderTrack(); renderSummary(); paint();
+}
+
+document.querySelectorAll('[data-od-id="pose-overlay-bar"] .chip').forEach(b=>b.addEventListener('click',()=>{
+  const on=b.getAttribute('aria-pressed')!=='true'; b.setAttribute('aria-pressed',String(on)); OV[b.dataset.ov]=on; paint();
+}));
+document.querySelectorAll('[data-od-id^="bike-dimension-"]').forEach(input=>input.addEventListener('input',paint));
+$('interp').addEventListener('change',e=>{ interp=e.target.value; refresh(true); });
+$('mirrorBtn').addEventListener('click',()=>{ KF[sel].p=pose({}); refresh(true); });
+$('addKf').addEventListener('click',()=>{
+  const s=Math.round(((KF[sel].s + (KF[sel+1] ? KF[sel+1].s : KF[sel].s+1))/2)*100)/100;
+  KF.push({s, name:'keyframe '+(KF.length+1), note:'added at s = '+s.toFixed(2)+' m', p:pose(sampleTarget(s))});
+  KF.sort((a,b)=>a.s-b.s); sel=KF.findIndex(k=>k.s===s); refresh(true);
+});
+$('applyBtn').addEventListener('click',()=>{
+  const b=$('applyBtn'); const t=b.innerHTML;
+  b.innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.4 6.4 12 13 4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Applied';
+  setTimeout(()=>{ b.innerHTML=t; }, 1200);
+});
+try{ const s=localStorage.getItem('jumplab.pose.sel'); if(s!==null) sel=Math.min(KF.length-1, +s); }catch(e){}
+window.addEventListener('beforeunload',()=>{ try{ localStorage.setItem('jumplab.pose.sel', sel); }catch(e){} });
+new ResizeObserver(fit).observe(document.querySelector('.stage'));
+renderRom(); refresh(true); fit();
+</script>
+</body>
+</html>

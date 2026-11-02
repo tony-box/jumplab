@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T18:49:53.684Z",
+  "status": "automated-pass",
+  "outcomes": [
+    {
+      "id": "static-checks",
+      "command": "npm run check",
+      "status": "pass",
+      "durationMs": 11820
+    },
+    {
+      "id": "physics-build",
+      "command": "npm run build:physics",
+      "status": "pass",
+      "durationMs": 37494
+    },
+    {
+      "id": "production-build",
+      "command": "npm run build",
+      "status": "pass",
+      "durationMs": 7091
+    },
+    {
+      "id": "unit-contract-benchmark-tests",
+      "command": "npm run test:unit",
+      "status": "pass",
+      "durationMs": 73353
+    },
+    {
+      "id": "physics-tests",
+      "command": "npm run test:physics",
+      "status": "pass",
+      "durationMs": 242413
+    },
+    {
+      "id": "convergence",
+      "command": "npm run test:convergence",
+      "status": "pass",
+      "durationMs": 18092
+    },
+    {
+      "id": "native-wasm-browser-parity",
+      "command": "npm run test:parity",
+      "status": "pass",
+      "durationMs": 52819
+    },
+    {
+      "id": "determinism",
+      "command": "npm run test:determinism",
+      "status": "pass",
+      "durationMs": 17808
+    },
+    {
+      "id": "worker-contract",
+      "command": "npm run test:worker",
+      "status": "pass",
+      "durationMs": 1755
+    },
+    {
+      "id": "persistence",
+      "command": "npm run test:persistence",
+      "status": "pass",
+      "durationMs": 3156
+    },
+    {
+      "id": "browser-workflows",
+      "command": "npm run test:e2e",
+      "status": "pass",
+      "durationMs": 352018
+    },
+    {
+      "id": "visual",
+      "command": "npm run test:visual",
+      "status": "pass",
+      "durationMs": 47095
+    },
+    {
+      "id": "accessibility",
+      "command": "npm run test:a11y",
+      "status": "pass",
+      "durationMs": 20890
+    },
+    {
+      "id": "offline",
+      "command": "npm run test:offline",
+      "status": "pass",
+      "durationMs": 10296
+    },
+    {
+      "id": "physics-benchmark",
+      "command": "npm run benchmark:standard",
+      "status": "pass",
+      "durationMs": 28736
+    },
+    {
+      "id": "interaction-benchmark",
+      "command": "npm run benchmark:interaction",
+      "status": "pass",
+      "durationMs": 31861
+    },
+    {
+      "id": "security",
+      "command": "node scripts/security-release-gates.mjs --audit",
+      "status": "pass",
+      "durationMs": 1778
+    },
+    {
+      "id": "compatibility-evidence",
+      "command": "node scripts/generate-compatibility-report.mjs",
+      "status": "pass",
+      "durationMs": 105
+    },
+    {
+      "id": "final-evidence",
+      "command": "node scripts/generate-final-evidence.mjs",
+      "status": "pass",
+      "durationMs": 97
+    },
+    {
+      "id": "decision-validation",
+      "command": "npm run validate:decision",
+      "status": "pass",
+      "durationMs": 621
+    }
+  ],
+  "externalApprovalGates": [
+    "Independent timed reviewer exercise",
+    "Real Safari stable/previous",
+    "Real iPadOS Safari",
+    "Real Android Chrome",
+    "Explicit final maintainer sign-off"
+  ]
+}

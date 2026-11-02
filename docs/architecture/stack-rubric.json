@@ -1,0 +1,425 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T20:05:00.000Z",
+  "criteria": [
+    {
+      "id": "determinism-gate",
+      "name": "Determinism gate",
+      "kind": "gate",
+      "weight": 0,
+      "sourceRefs": ["FR-005", "FR-006", "FR-020"],
+      "acceptanceRule": "Candidate must preserve deterministic fixed-step outputs from canonical inputs across native, WASM, and supported browsers."
+    },
+    {
+      "id": "worker-isolation-gate",
+      "name": "Worker isolation gate",
+      "kind": "gate",
+      "weight": 0,
+      "sourceRefs": ["FR-008", "SC-011"],
+      "acceptanceRule": "Candidate must isolate heavy solving from the UI thread and support progress, cancellation, and stale-run rejection."
+    },
+    {
+      "id": "offline-gate",
+      "name": "Offline workflow gate",
+      "kind": "gate",
+      "weight": 0,
+      "sourceRefs": ["FR-017", "FR-018", "SC-009"],
+      "acceptanceRule": "After first successful online load, core edit/save/solve/replay workflows must remain available offline."
+    },
+    {
+      "id": "license-gate",
+      "name": "License compatibility gate",
+      "kind": "gate",
+      "weight": 0,
+      "sourceRefs": ["FR-004", "FR-013"],
+      "acceptanceRule": "All required dependencies must use redistribution-compatible licenses."
+    },
+    {
+      "id": "physics-correctness",
+      "name": "Physics correctness, determinism, and numerical validation",
+      "kind": "weighted",
+      "weight": 25,
+      "sourceRefs": ["FR-006", "FR-007", "FR-020"],
+      "acceptanceRule": "Score 1-5 using deterministic kernel capability and numerical validation readiness."
+    },
+    {
+      "id": "browser-offline",
+      "name": "Browser compatibility and offline behavior",
+      "kind": "weighted",
+      "weight": 15,
+      "sourceRefs": ["FR-015", "FR-017"],
+      "acceptanceRule": "Score 1-5 using support matrix fit and offline shell readiness."
+    },
+    {
+      "id": "runtime-performance",
+      "name": "Runtime responsiveness and performance",
+      "kind": "weighted",
+      "weight": 10,
+      "sourceRefs": ["FR-019", "SC-011"],
+      "acceptanceRule": "Score 1-5 using responsiveness architecture and benchmark feasibility."
+    },
+    {
+      "id": "a11y-testability",
+      "name": "Accessibility and rendered-output testability",
+      "kind": "weighted",
+      "weight": 10,
+      "sourceRefs": ["FR-010", "FR-011"],
+      "acceptanceRule": "Score 1-5 using DOM accessibility pathway and deterministic browser testability."
+    },
+    {
+      "id": "maintainability-boundaries",
+      "name": "Maintainability and boundary clarity",
+      "kind": "weighted",
+      "weight": 15,
+      "sourceRefs": ["FR-014", "FR-022"],
+      "acceptanceRule": "Score 1-5 using ownership boundaries, migration clarity, and integration complexity."
+    },
+    {
+      "id": "maturity-security-license",
+      "name": "Dependency maturity, security, and license posture",
+      "kind": "weighted",
+      "weight": 10,
+      "sourceRefs": ["FR-004", "FR-013"],
+      "acceptanceRule": "Score 1-5 using ecosystem maturity and known governance posture."
+    },
+    {
+      "id": "observability-debug",
+      "name": "Debugging and observability",
+      "kind": "weighted",
+      "weight": 5,
+      "sourceRefs": ["FR-013", "SC-007"],
+      "acceptanceRule": "Score 1-5 using ability to inspect state, metrics, and failures reproducibly."
+    },
+    {
+      "id": "build-migration-risk",
+      "name": "Build complexity and migration risk",
+      "kind": "weighted",
+      "weight": 10,
+      "sourceRefs": ["FR-013", "FR-014"],
+      "acceptanceRule": "Score 1-5 using build complexity, coupling, and long-term migration burden."
+    }
+  ],
+  "tieBreakPolicy": {
+    "orderedCriteriaIds": [
+      "physics-correctness",
+      "browser-offline",
+      "runtime-performance",
+      "maintainability-boundaries"
+    ]
+  },
+  "candidates": [
+    {
+      "id": "cand-selected-stack",
+      "stackAreaIds": [
+        "ui",
+        "routing",
+        "rendering",
+        "charts",
+        "physics",
+        "worker",
+        "state",
+        "validation",
+        "storage",
+        "offline",
+        "testing",
+        "delivery"
+      ],
+      "name": "React + TypeScript + Vite with Rust/Rapier WASM in a dedicated worker",
+      "versionBaseline": "React 19.2.8, TypeScript 7.0.2, Vite 8.2.2, rapier2d 0.35.2",
+      "license": "MIT/Apache-2.0 compatible mix",
+      "ratings": [
+        {
+          "criterionId": "determinism-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-rapier-determinism", "ev-pkg-physics", "ev-spec-gates"],
+          "notes": "Kernel design and deterministic feature set align with determinism requirements."
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-worker-api", "ev-spec-gates", "ev-research-candidates"],
+          "notes": "Dedicated worker architecture satisfies isolation, progress, and cancellation requirements."
+        },
+        {
+          "criterionId": "offline-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-service-worker-api", "ev-indexeddb-api", "ev-spec-gates"],
+          "notes": "Service worker plus IndexedDB supports first-load-then-offline workflow expectations."
+        },
+        {
+          "criterionId": "license-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-pkg-web", "ev-pkg-physics"],
+          "notes": "Pinned dependencies use licenses compatible with browser redistribution."
+        },
+        {
+          "criterionId": "physics-correctness",
+          "score": 5,
+          "gateResult": null,
+          "evidenceIds": ["ev-rapier-determinism", "ev-rapier-joints", "ev-pkg-physics"],
+          "notes": "Strongest support for deterministic coupled articulated dynamics in one kernel."
+        },
+        {
+          "criterionId": "browser-offline",
+          "score": 5,
+          "gateResult": null,
+          "evidenceIds": ["ev-service-worker-api", "ev-vite-guide", "ev-spec-gates"],
+          "notes": "Static build and cache model fit browser matrix and offline constraints."
+        },
+        {
+          "criterionId": "runtime-performance",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-worker-api", "ev-research-candidates"],
+          "notes": "Off-main-thread architecture is strong; runtime target still requires measured benchmark proof."
+        },
+        {
+          "criterionId": "a11y-testability",
+          "score": 5,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-spec-gates", "ev-react-19"],
+          "notes": "Combines semantic DOM pathways with cross-browser automation and deterministic checks."
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-research-candidates", "ev-pkg-web", "ev-pkg-physics"],
+          "notes": "Clear boundaries, but Rust/WASM adds interface and toolchain maintenance overhead."
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "score": 5,
+          "gateResult": null,
+          "evidenceIds": ["ev-pkg-web", "ev-pkg-physics", "ev-react-19"],
+          "notes": "Selected dependencies are mature and pinned with established governance."
+        },
+        {
+          "criterionId": "observability-debug",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-research-candidates"],
+          "notes": "Good native/browser observability path with explicit validation artifacts."
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "score": 3,
+          "gateResult": null,
+          "evidenceIds": ["ev-pkg-physics", "ev-vite-guide", "ev-research-candidates"],
+          "notes": "Cross-language build introduces complexity and migration risk compared to pure TypeScript."
+        }
+      ],
+      "risks": [
+        "Rust/WASM build complexity can slow onboarding and CI iteration.",
+        "Cross-language boundary drift between schema contracts and generated bindings must be controlled.",
+        "Performance targets remain provisional until benchmark and parity gates are measured."
+      ],
+      "fallback": "Direct deterministic Rapier npm binding in worker with stricter deterministic preprocessing controls.",
+      "alternatives": ["cand-js-rapier-worker", "cand-main-thread-mixed"]
+    },
+    {
+      "id": "cand-js-rapier-worker",
+      "stackAreaIds": ["physics", "worker", "ui", "delivery"],
+      "name": "TypeScript app with deterministic Rapier npm binding in dedicated worker",
+      "versionBaseline": "@dimforge/rapier2d-deterministic baseline",
+      "license": "Apache-2.0 compatible",
+      "ratings": [
+        {
+          "criterionId": "determinism-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-rapier-determinism", "ev-spec-gates"],
+          "notes": "Deterministic engine exists, but preprocessing discipline still required."
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-worker-api", "ev-spec-gates"],
+          "notes": "Dedicated worker still isolates solve workload from UI."
+        },
+        {
+          "criterionId": "offline-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-service-worker-api", "ev-indexeddb-api"],
+          "notes": "Offline shell and persistence model are still achievable."
+        },
+        {
+          "criterionId": "license-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-pkg-web"],
+          "notes": "License posture appears compatible from package metadata."
+        },
+        {
+          "criterionId": "physics-correctness",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-rapier-determinism", "ev-rapier-joints"],
+          "notes": "Strong engine, but deterministic preprocessing split across TypeScript and WASM raises risk."
+        },
+        {
+          "criterionId": "browser-offline",
+          "score": 5,
+          "gateResult": null,
+          "evidenceIds": ["ev-vite-guide", "ev-service-worker-api"],
+          "notes": "Browser/offline story remains strong."
+        },
+        {
+          "criterionId": "runtime-performance",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-worker-api", "ev-research-candidates"],
+          "notes": "Similar isolation profile, though data marshaling paths differ."
+        },
+        {
+          "criterionId": "a11y-testability",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-spec-gates"],
+          "notes": "Good testability baseline; fewer explicit cross-language constraints documented."
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "score": 3,
+          "gateResult": null,
+          "evidenceIds": ["ev-research-candidates"],
+          "notes": "Mixed responsibility for deterministic preprocessing weakens boundary clarity."
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-pkg-web", "ev-research-candidates"],
+          "notes": "Mature dependencies, but less explicit coverage for physics boundary ownership."
+        },
+        {
+          "criterionId": "observability-debug",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-research-candidates"],
+          "notes": "Debugging remains practical, but deterministic root-cause analysis may span runtimes."
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-pkg-web", "ev-vite-guide"],
+          "notes": "Simpler build chain than Rust/WASM, but long-term determinism risk remains."
+        }
+      ],
+      "risks": [
+        "Deterministic preprocessing outside Rust may introduce cross-platform drift.",
+        "Boundary ownership for authoritative physics values is less strict.",
+        "Validation burden increases for parity and canonical math enforcement."
+      ],
+      "fallback": "Promote deterministic preprocessing and analysis logic into a Rust kernel if drift appears.",
+      "alternatives": ["cand-selected-stack", "cand-main-thread-mixed"]
+    },
+    {
+      "id": "cand-main-thread-mixed",
+      "stackAreaIds": ["ui", "physics", "state", "delivery"],
+      "name": "Main-thread TypeScript-first stack with lightweight physics integration",
+      "versionBaseline": "TypeScript-only focus",
+      "license": "MIT-compatible",
+      "ratings": [
+        {
+          "criterionId": "determinism-gate",
+          "score": null,
+          "gateResult": false,
+          "evidenceIds": ["ev-spec-gates", "ev-research-candidates"],
+          "notes": "Fails hard determinism confidence because deterministic ownership is fragmented."
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "score": null,
+          "gateResult": false,
+          "evidenceIds": ["ev-worker-api", "ev-spec-gates"],
+          "notes": "Fails required off-main-thread solve isolation and cancellation responsiveness expectations."
+        },
+        {
+          "criterionId": "offline-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-service-worker-api", "ev-indexeddb-api"],
+          "notes": "Offline shell and storage are possible."
+        },
+        {
+          "criterionId": "license-gate",
+          "score": null,
+          "gateResult": true,
+          "evidenceIds": ["ev-pkg-web"],
+          "notes": "No license blocker identified from baseline metadata."
+        },
+        {
+          "criterionId": "physics-correctness",
+          "score": 2,
+          "gateResult": null,
+          "evidenceIds": ["ev-rapier-joints", "ev-spec-gates"],
+          "notes": "Cannot demonstrate the same confidence in deterministic coupled physics execution."
+        },
+        {
+          "criterionId": "browser-offline",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-vite-guide", "ev-service-worker-api"],
+          "notes": "Browser compatibility can be good but does not compensate failed hard gates."
+        },
+        {
+          "criterionId": "runtime-performance",
+          "score": 2,
+          "gateResult": null,
+          "evidenceIds": ["ev-spec-gates", "ev-research-candidates"],
+          "notes": "Main-thread solve contention conflicts with responsiveness targets."
+        },
+        {
+          "criterionId": "a11y-testability",
+          "score": 3,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-react-19"],
+          "notes": "UI-level a11y can be addressed, but solver architecture remains incompatible with constraints."
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "score": 2,
+          "gateResult": null,
+          "evidenceIds": ["ev-research-candidates"],
+          "notes": "Boundary clarity weakens due to tightly coupled simulation and presentation concerns."
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "score": 3,
+          "gateResult": null,
+          "evidenceIds": ["ev-pkg-web"],
+          "notes": "Dependencies may be mature, but architectural fit is poor."
+        },
+        {
+          "criterionId": "observability-debug",
+          "score": 2,
+          "gateResult": null,
+          "evidenceIds": ["ev-playwright-projects", "ev-research-candidates"],
+          "notes": "Debugging non-deterministic contention across UI and simulation paths is harder."
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "score": 4,
+          "gateResult": null,
+          "evidenceIds": ["ev-vite-guide", "ev-research-candidates"],
+          "notes": "Simpler initial build, but future migration to compliant architecture is likely."
+        }
+      ],
+      "risks": [
+        "Fails mandatory worker isolation and deterministic ownership gates.",
+        "High risk of UI responsiveness regressions under heavy solve workloads.",
+        "Would require architectural rework before compliant production rollout."
+      ],
+      "fallback": null,
+      "alternatives": ["cand-selected-stack", "cand-js-rapier-worker"]
+    }
+  ]
+}

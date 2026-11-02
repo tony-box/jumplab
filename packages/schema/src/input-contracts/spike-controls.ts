@@ -1,0 +1,172 @@
+import { inputControlContractsSchema } from "../input-contract";
+
+export const spikeControlContracts = inputControlContractsSchema.parse([
+  {
+    id: "lip-height",
+    label: "Lip height",
+    unit: "m",
+    minimum: 0.2,
+    maximum: 4,
+    step: 0.05,
+    group: "jump",
+    physicalQuantity: "length",
+    explanation: "Vertical rise from the approach grade to the takeoff lip.",
+    scenarioPath: "scenario.jump.lipHeight"
+  },
+  {
+    id: "lip-angle",
+    label: "Lip angle",
+    unit: "rad",
+    minimum: -0.35,
+    maximum: 1.5,
+    step: 0.01,
+    group: "jump",
+    physicalQuantity: "plane angle",
+    explanation: "Takeoff tangent angle from horizontal; drops allow level or falling edges.",
+    scenarioPath: "scenario.jump.lipAngle"
+  },
+  {
+    id: "transition-length",
+    label: "Transition length",
+    unit: "m",
+    minimum: 0.5,
+    maximum: 8,
+    step: 0.05,
+    group: "jump",
+    physicalQuantity: "length",
+    explanation: "Horizontal distance from the start of the takeoff curve to the lip.",
+    scenarioPath: "scenario.jump.transitionLength"
+  },
+  {
+    id: "gap",
+    label: "Gap",
+    unit: "m",
+    minimum: 0,
+    maximum: 20,
+    step: 0.1,
+    group: "jump",
+    physicalQuantity: "length",
+    explanation: "Horizontal distance from takeoff lip to landing start.",
+    scenarioPath: "scenario.jump.gap"
+  },
+  {
+    id: "step-delta",
+    label: "Step delta",
+    unit: "m",
+    minimum: -3,
+    maximum: 3,
+    step: 0.05,
+    group: "landing",
+    physicalQuantity: "length",
+    explanation: "Landing elevation relative to takeoff elevation.",
+    scenarioPath: "scenario.jump.stepDelta"
+  },
+  {
+    id: "landing-angle",
+    label: "Landing angle",
+    unit: "rad",
+    minimum: 0.05,
+    maximum: 1.2,
+    step: 0.01,
+    group: "landing",
+    physicalQuantity: "plane angle",
+    explanation: "Landing downslope angle measured from horizontal.",
+    scenarioPath: "scenario.jump.landingAngle"
+  },
+  {
+    id: "landing-length",
+    label: "Landing length",
+    unit: "m",
+    minimum: 2,
+    maximum: 30,
+    step: 0.1,
+    group: "landing",
+    physicalQuantity: "length",
+    explanation: "Usable sloped landing distance before rollout.",
+    scenarioPath: "scenario.jump.landingLength"
+  },
+  {
+    id: "entry-speed",
+    label: "Entry speed",
+    unit: "m/s",
+    minimum: 0.5,
+    maximum: 30,
+    step: 0.1,
+    group: "entry",
+    physicalQuantity: "speed",
+    explanation: "Horizontal rider and bike speed at simulation start.",
+    scenarioPath: "scenario.entry.speed"
+  },
+  {
+    id: "rider-height",
+    label: "Rider height",
+    unit: "m",
+    minimum: 1.2,
+    maximum: 2.2,
+    step: 0.01,
+    group: "rider",
+    physicalQuantity: "length",
+    explanation: "Standing rider height used for anthropometric segment derivation.",
+    scenarioPath: "scenario.rider.height"
+  },
+  {
+    id: "rider-mass",
+    label: "Rider mass",
+    unit: "kg",
+    minimum: 30,
+    maximum: 150,
+    step: 0.5,
+    group: "rider",
+    physicalQuantity: "mass",
+    explanation: "Total rider mass distributed across articulated segments.",
+    scenarioPath: "scenario.rider.mass"
+  },
+  {
+    id: "wheelbase",
+    label: "Wheelbase",
+    unit: "m",
+    minimum: 0.8,
+    maximum: 1.6,
+    step: 0.01,
+    group: "bike",
+    physicalQuantity: "length",
+    explanation: "Distance between front and rear wheel contact centers.",
+    scenarioPath: "scenario.bike.wheelbase"
+  },
+  {
+    id: "bike-mass",
+    label: "Bike mass",
+    unit: "kg",
+    minimum: 5,
+    maximum: 35,
+    step: 0.1,
+    group: "bike",
+    physicalQuantity: "mass",
+    explanation: "Combined bicycle mass excluding the rider.",
+    scenarioPath: "scenario.bike.mass"
+  },
+  {
+    id: "fork-travel",
+    label: "Fork travel",
+    unit: "m",
+    minimum: 0,
+    maximum: 0.25,
+    step: 0.005,
+    group: "bike",
+    physicalQuantity: "length",
+    explanation: "Maximum modeled front suspension displacement.",
+    scenarioPath: "scenario.bike.fork.travel"
+  },
+  {
+    id: "fork-sag",
+    label: "Fork sag",
+    unit: "m",
+    minimum: 0,
+    maximum: 0.12,
+    step: 0.002,
+    group: "bike",
+    physicalQuantity: "length",
+    explanation: "Static front suspension compression at equilibrium.",
+    scenarioPath: "scenario.bike.fork.sag"
+  }
+]);

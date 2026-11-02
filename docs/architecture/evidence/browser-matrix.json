@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T18:49:53.049Z",
+  "approvalReady": false,
+  "automated": [
+    {
+      "name": "chromium",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": {
+        "inputP95Ms": 16.30000001192093,
+        "frameP50Ms": 16.699999999999818,
+        "fps": 59.88023952095874,
+        "droppedFrames": 0,
+        "presentationSolveDispatches": 0,
+        "status": "pass"
+      },
+      "designerPerformance": {
+        "updateCount": 30,
+        "withinBudget": 30,
+        "withinBudgetRate": 1,
+        "updateP95Ms": 97.30000001192093,
+        "status": "pass",
+        "continuousBikeEdits": 20,
+        "modeSwitches": 10,
+        "validatedKeyCount": 64,
+        "staleCancellation": {
+          "discarded": true,
+          "inspectionCount": 2,
+          "finalReach": 0.47
+        }
+      },
+      "canvas": {
+        "minimum": 47,
+        "maximum": 244,
+        "nonTransparent": 145092
+      },
+      "offlineReload": true
+    },
+    {
+      "name": "firefox",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": null,
+      "designerPerformance": null,
+      "canvas": null,
+      "offlineReload": false
+    },
+    {
+      "name": "webkit",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": null,
+      "designerPerformance": null,
+      "canvas": null,
+      "offlineReload": false
+    }
+  ],
+  "externalRequired": [
+    {
+      "browser": "Safari stable and previous",
+      "device": "macOS",
+      "status": "not-executed",
+      "reason": "Requires real Safari hardware; Playwright WebKit is not Safari."
+    },
+    {
+      "browser": "iPadOS Safari",
+      "device": "iPad",
+      "status": "not-executed",
+      "reason": "Requires a real iPadOS device."
+    },
+    {
+      "browser": "Android Chrome",
+      "device": "Android",
+      "status": "not-executed",
+      "reason": "Requires a real Android device or approved device lab."
+    }
+  ]
+}

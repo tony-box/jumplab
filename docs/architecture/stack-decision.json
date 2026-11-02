@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "DR-001-selected-stack",
+  "stackAreaIds": [
+    "ui",
+    "routing",
+    "rendering",
+    "charts",
+    "physics",
+    "worker",
+    "state",
+    "validation",
+    "storage",
+    "offline",
+    "testing",
+    "delivery"
+  ],
+  "selectedCandidateId": "cand-selected-stack",
+  "rationale": "The selected stack is the only candidate set that satisfies all hard gates while maintaining the strongest weighted score for deterministic physics ownership, browser/offline coverage, and auditable boundaries.",
+  "rejectedCandidateIds": ["cand-js-rapier-worker", "cand-main-thread-mixed"],
+  "singleCandidateJustification": null,
+  "riskIds": [
+    "risk-rust-wasm-build-complexity",
+    "risk-boundary-drift-between-generated-bindings-and-schema",
+    "risk-benchmark-target-not-yet-measured"
+  ],
+  "revisitTriggers": [
+    "Native/WASM/browser parity gate failure on the canonical scenario.",
+    "Standard benchmark p95 exceeds five seconds without a deterministic optimization path.",
+    "Offline workflow gate fails on supported browser matrix.",
+    "Critical unresolved vulnerability in selected dependencies.",
+    "A new product requirement introduces server-side collaboration or non-2D interaction modes."
+  ],
+  "provisionallyApprovedBy": "project-maintainer",
+  "provisionallyApprovedAt": "2026-08-24T20:45:00.000Z",
+  "approvedBy": null,
+  "approvedAt": null,
+  "status": "provisionally-approved",
+  "supersedes": null,
+  "fallbackPlan": {
+    "primaryFallbackCandidateId": "cand-js-rapier-worker",
+    "conditions": [
+      "Fallback is considered only if deterministic parity cannot be stabilized in the Rust/WASM integration path.",
+      "Fallback requires revalidating deterministic preprocessing ownership and replay parity gates."
+    ]
+  }
+}

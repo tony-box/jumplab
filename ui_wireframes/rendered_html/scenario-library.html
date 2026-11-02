@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scenario library — 2D MTB Jump Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:oklch(98% 0.005 250); --surface:oklch(100% 0 0); --surface-2:oklch(96.5% 0.006 250);
+  --fg:oklch(22% 0.02 240); --muted:oklch(50% 0.018 240);
+  --border:oklch(90% 0.008 240); --border-strong:oklch(84% 0.01 240);
+  --accent:oklch(58% 0.16 145); --accent-ink:oklch(41% 0.12 145);
+  --stage:oklch(24% 0.025 250);
+  --warn:oklch(64% 0.14 75); --danger:oklch(55% 0.19 27);
+  --font-display:'Archivo','Segoe UI',system-ui,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);margin:0;letter-spacing:-.015em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;border-radius:4px}
+a{color:inherit}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.mark{display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:-.02em;text-decoration:none;color:var(--fg)}
+.mark .v{font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.nav{display:flex;gap:2px;margin-left:6px}
+.nav a{padding:6px 10px;border-radius:5px;text-decoration:none;color:var(--muted);font-size:13px;font-weight:500;transition:background .14s var(--ease),color .14s var(--ease)}
+.nav a:hover{background:var(--surface-2);color:var(--fg)}
+.nav a[aria-current="page"]{color:var(--fg);background:oklch(93% 0.008 250);font-weight:600}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;transition:background .14s var(--ease),transform .1s var(--ease)}
+.btn:hover{background:oklch(94% 0.008 250)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn.primary:hover{background:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn.sm{height:28px;font-size:12.5px;padding:0 10px}
+.btn svg{width:14px;height:14px;flex:none}
+.search{display:flex;align-items:center;gap:7px;height:32px;padding:0 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);min-width:220px}
+.search svg{width:14px;height:14px;color:var(--muted);flex:none}
+.search input{border:0;background:none;outline:none;width:100%;font-size:13px}
+.search input::placeholder{color:var(--muted)}
+.wrap{max-width:1220px;margin:0 auto;padding:22px 22px 70px}
+.tabbar{display:flex;gap:3px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto}
+.tabbar button{border:0;background:none;padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .14s var(--ease),background .14s var(--ease)}
+.tabbar button:hover{color:var(--fg);background:var(--surface-2)}
+.tabbar button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.tabbar button .n{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(316px,1fr));gap:14px}
+.pcard{border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+.pcard:hover{border-color:var(--border-strong);box-shadow:0 2px 10px oklch(22% 0.02 240 / .06)}
+.pcard .thumb{background:var(--stage);height:132px;position:relative}
+.pcard .thumb svg{display:block;width:100%;height:100%}
+.pcard .thumb .tag{position:absolute;top:9px;left:9px;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:oklch(80% 0.02 250);background:oklch(20% 0.02 250 / .85);border:1px solid oklch(42% 0.02 250);border-radius:4px;padding:3px 7px}
+.pcard .hd{padding:12px 14px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.pcard h3{font-size:15px;letter-spacing:-.02em}
+.pcard .sub{font-size:12.5px;color:var(--muted);padding:3px 14px 0;line-height:1.45}
+.pcard dl{display:grid;grid-template-columns:1fr auto;gap:0 10px;margin:11px 0 0;padding:0 14px}
+.pcard dt{font-size:12px;color:var(--muted);padding:3px 0;border-top:1px solid var(--border)}
+.pcard dd{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px;margin:0;text-align:right;padding:3px 0;border-top:1px solid var(--border)}
+.pcard dt:first-of-type,.pcard dd:first-of-type{border-top:0}
+.pcard .win{margin:12px 14px 0;padding:9px 11px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border)}
+.pcard .win .lab{font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700;color:var(--muted);margin-bottom:6px}
+.pcard .win .rng{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500}
+.pcard .win .rng small{font-size:11px;color:var(--muted);font-weight:400}
+.gauge{position:relative;height:6px;border-radius:3px;background:var(--border);margin-top:8px;overflow:hidden}
+.gauge i{position:absolute;top:0;bottom:0;background:oklch(35% 0.02 250);border-radius:3px}
+.gauge b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--accent-ink);border-radius:2px}
+.gscale{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9.5px;color:var(--muted);margin-top:4px}
+.pcard .ft{margin-top:auto;padding:12px 14px 13px;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:3px 7px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.badge.mellow{color:var(--accent-ink);background:oklch(96% 0.05 145);border-color:oklch(86% 0.08 145)}
+.badge.steep{color:oklch(38% 0.14 27);background:oklch(96% 0.04 27);border-color:oklch(88% 0.07 27)}
+.badge.mid{color:oklch(38% 0.1 75);background:oklch(96% 0.05 85);border-color:oklch(86% 0.08 80)}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);border:1px dashed var(--border-strong);border-radius:10px}
+.rowcard{border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;text-align:right;padding:9px 12px;border-bottom:1px solid var(--border-strong);background:var(--surface-2);white-space:nowrap}
+th:first-child{text-align:left}
+td{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;text-align:right;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+td:first-child{text-align:left;font-family:var(--font-body);font-size:13px;font-weight:600}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+td .desc{display:block;font-family:var(--font-body);font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px;max-width:52ch;line-height:1.45}
+.callout{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border:1px solid var(--border-strong);border-radius:9px;background:var(--surface-2);font-size:13px;line-height:1.55;margin-top:16px}
+.callout svg{width:17px;height:17px;flex:none;margin-top:2px;color:var(--muted)}
+.callout strong{font-family:var(--font-display)}
+@media (max-width:560px){.wrap{padding:16px 14px 50px}.grid{grid-template-columns:1fr}td .desc{max-width:none}}
+</style>
+</head>
+<body>
+<header class="topbar" data-od-id="topbar">
+  <a class="mark" href="index.html">JUMP LAB <span class="v">2D · v0.4</span></a>
+  <nav class="nav" aria-label="Primary">
+    <a href="workbench.html">Workbench</a>
+    <a href="designer.html">Designer</a>
+    <a href="run-report.html">Report</a>
+    <a href="scenario-library.html" aria-current="page">Library</a>
+    <a href="validation.html">Validation</a>
+  </nav>
+  <span class="spacer"></span>
+  <div class="search" data-od-id="library-search">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7.2" cy="7.2" r="4.4"/><path d="m10.6 10.6 3 3" stroke-linecap="round"/></svg>
+    <input id="q" type="search" placeholder="Filter presets…" aria-label="Filter presets">
+  </div>
+  <button class="btn primary" id="newBtn" data-od-id="new-scenario">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3.5v9M3.5 8h9" stroke-linecap="round"/></svg>
+    New scenario
+  </button>
+</header>
+
+<div class="wrap">
+  <div style="margin-bottom:18px">
+    <h1 style="font-size:25px;letter-spacing:-.025em">Scenario library</h1>
+    <p style="margin:6px 0 0;color:var(--muted);font-size:13.5px;max-width:78ch">Versioned presets shared between <span class="num">web/</span> and <span class="num">physics/</span>. Every jump card's entry-speed window is solved from its own geometry when this page loads — it is a property of the feature, not a note someone typed.</p>
+  </div>
+
+  <div class="tabbar" role="tablist" data-od-id="library-tabs">
+    <button role="tab" aria-selected="true" data-tab="jumps">Jump features<span class="n" id="nJumps"></span></button>
+    <button role="tab" aria-selected="false" data-tab="riders">Rider profiles<span class="n" id="nRiders"></span></button>
+    <button role="tab" aria-selected="false" data-tab="bikes">Bike builds<span class="n" id="nBikes"></span></button>
+    <button role="tab" aria-selected="false" data-tab="moves">Movement experiments<span class="n" id="nMoves"></span></button>
+  </div>
+
+  <section data-view="jumps" data-od-id="view-jumps">
+    <div class="grid" id="jumpGrid"></div>
+    <div class="callout" data-od-id="window-explainer">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.3v4M8 4.9h.01" stroke-linecap="round"/></svg>
+      <span><strong>How the window is solved.</strong> For each feature the ballistic arc is integrated at 0.05 m/s increments from the lip. A speed is inside the window when the wheel touches down between 0.40 m past the knuckle and 0.40 m before the landing runs out. The marker shows the geometric centre of that window — the speed the feature was shaped for.</span>
+    </div>
+  </section>
+
+  <section data-view="riders" hidden data-od-id="view-riders">
+    <div class="rowcard">
+      <table>
+        <thead><tr><th>Profile</th><th>Height</th><th>Mass</th><th>Leg ratio</th><th>Strength</th><th>Hip τ max</th><th></th></tr></thead>
+        <tbody id="riderBody"></tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.3v4M8 4.9h.01" stroke-linecap="round"/></svg>
+      <span><strong>Segment lengths are derived, not authored.</strong> Each profile stores height, mass, and two ratios; the individual segment lengths come from standard anthropometric proportions. Changing height rescales the whole figure consistently instead of drifting out of proportion.</span>
+    </div>
+  </section>
+
+  <section data-view="bikes" hidden data-od-id="view-bikes">
+    <div class="rowcard">
+      <table>
+        <thead><tr><th>Build</th><th>Wheel</th><th>Wheelbase</th><th>Chainstay</th><th>BB height</th><th>Travel</th><th>Spring</th><th>Mass</th><th></th></tr></thead>
+        <tbody id="bikeBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section data-view="moves" hidden data-od-id="view-moves">
+    <div class="rowcard">
+      <table>
+        <thead><tr><th>Experiment</th><th>Extension Δv</th><th>Angular rate</th><th>Effect on airtime</th><th>Effect on attitude</th><th></th></tr></thead>
+        <tbody id="moveBody"></tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.3v4M8 4.9h.01" stroke-linecap="round"/></svg>
+      <span><strong>The two effect columns are measured.</strong> Each experiment is run against the reference tabletop and differenced with the neutral run at page load. If you change the reference feature, these numbers change with it — they are not a fixed table of claims about riding technique.</span>
+    </div>
+  </section>
+</div>
+
+<script>
+const G=9.80665, DEG=Math.PI/180, $=id=>document.getElementById(id);
+
+const JUMPS=[
+  {id:'tabletop-mellow', name:'Mellow tabletop', kind:'table', tag:'tabletop',
+   note:'Forgiving deck, low lip angle. The first feature a session should start on.',
+   p:{lipH:0.9, lipA:24, rad:4.5, gap:5.0, step:0, landA:22, landL:5.0, roll:8}},
+  {id:'tabletop-24', name:'Reference tabletop', kind:'table', tag:'tabletop',
+   note:'The house reference. Every experiment in the library is differenced against this shape.',
+   p:{lipH:1.2, lipA:32, rad:3.6, gap:6.0, step:0, landA:28, landL:5.0, roll:8}},
+  {id:'tabletop-steep', name:'Steep tabletop', kind:'table', tag:'tabletop',
+   note:'Short transition and a hard lip. Punishes a late extension severely.',
+   p:{lipH:1.5, lipA:44, rad:2.2, gap:6.5, step:0, landA:34, landL:5.5, roll:8}},
+  {id:'double-8', name:'8 m double', kind:'gap', tag:'double',
+   note:'True gap between lip and knuckle — coming up short has no deck to catch it.',
+   p:{lipH:1.35, lipA:36, rad:3.0, gap:8.0, step:0, landA:30, landL:6.0, roll:9}},
+  {id:'double-12', name:'12 m double', kind:'gap', tag:'double',
+   note:'Long gap. Narrow entry-speed window; the whole point of solving one before riding it.',
+   p:{lipH:1.6, lipA:38, rad:3.2, gap:12.0, step:0, landA:32, landL:7.0, roll:10}},
+  {id:'stepup-15', name:'Step-up +1.5 m', kind:'stepup', tag:'step-up',
+   note:'Landing sits above the lip. Needs both height and a nose-up attitude to match the surface.',
+   p:{lipH:1.3, lipA:42, rad:2.8, gap:5.5, step:1.5, landA:26, landL:5.0, roll:8}},
+  {id:'stepdown-20', name:'Step-down −2.0 m', kind:'stepdown', tag:'step-down',
+   note:'Landing well below the lip. Long airtime, high impact velocity, deep fork travel.',
+   p:{lipH:1.1, lipA:26, rad:4.0, gap:5.0, step:-2.0, landA:34, landL:7.0, roll:10}},
+  {id:'flat-drop-18', name:'Flat drop', kind:'stepdown', tag:'drop',
+   note:'Near-zero lip angle off a 1.8 m ledge. Isolates fork behaviour from rotation.',
+   p:{lipH:1.8, lipA:6, rad:6.0, gap:2.5, step:-1.8, landA:20, landL:4.0, roll:8}}
+];
+const RIDERS=[
+  {n:'Reference adult', h:1.78, m:74, leg:0.490, str:1.00},
+  {n:'Compact', h:1.62, m:58, leg:0.478, str:0.86},
+  {n:'Tall', h:1.93, m:88, leg:0.505, str:1.12},
+  {n:'Youth', h:1.44, m:38, leg:0.470, str:0.58},
+  {n:'Heavy', h:1.80, m:102, leg:0.488, str:1.05},
+  {n:'Limited hip ROM', h:1.76, m:79, leg:0.486, str:0.92, romNote:'hip capped at 92°'}
+];
+const BIKES=[
+  {n:'Reference hardtail', w:29, wb:1.185, cs:0.435, bb:0.315, tr:130, k:26.0, m:13.4},
+  {n:'Short-travel XC', w:29, wb:1.140, cs:0.430, bb:0.330, tr:100, k:30.5, m:11.2},
+  {n:'Slack trail hardtail', w:29, wb:1.245, cs:0.440, bb:0.305, tr:150, k:23.0, m:14.6},
+  {n:'27.5 dirt jumper', w:27.5, wb:1.055, cs:0.400, bb:0.300, tr:100, k:34.0, m:11.8},
+  {n:'26 dirt jumper', w:26, wb:1.030, cs:0.395, bb:0.295, tr:80, k:38.0, m:11.0},
+  {n:'Youth 24', w:26, wb:0.985, cs:0.390, bb:0.280, tr:80, k:18.0, m:9.6}
+];
+const MOVES=[
+  {id:'neutral', n:'Neutral', pop:0.00, om:0.0,  d:'Pose held constant through the transition. The control condition.'},
+  {id:'preload', n:'Preload + extend', pop:0.85, om:-0.7, d:'Compress into the transition, extend through the lip. The canonical "pop".'},
+  {id:'early',   n:'Early extension', pop:0.55, om:-1.5, d:'Extension completes before the lip. Height traded for nose-up rotation.'},
+  {id:'late',    n:'Late extension', pop:0.62, om:1.3,  d:'Extension continues past the lip, driving the rear wheel up. Nose-down.'},
+  {id:'fore',    n:'Fore shift', pop:0.10, om:1.9,  d:'Mass moved forward over the bars through takeoff.'},
+  {id:'aft',     n:'Aft shift', pop:0.15, om:-2.1, d:'Mass moved behind the bottom bracket through takeoff.'}
+];
+
+/* ---- shared geometry + solver --------------------------------------- */
+function profile(p, kind){
+  const th=p.lipA*DEG, R=p.rad, pts=[[-9,0],[0,0]];
+  for(let i=1;i<=26;i++){ const a=th*i/26; pts.push([R*Math.sin(a), R*(1-Math.cos(a))]); }
+  let lx=R*Math.sin(th), ly=R*(1-Math.cos(th));
+  if(p.lipH>ly){ lx+=(p.lipH-ly)/Math.tan(th); ly=p.lipH; }
+  const kx=lx+p.gap, ky=Math.max(0.15, ly+p.step);
+  if(kind==='table'){ pts.push([lx,ly],[kx,ky]); }
+  else { pts.push([lx,ly],[lx+0.12,Math.max(0,ly-p.lipH*0.6)],[lx+0.6,0.05],[kx-0.6,0.05],[kx,ky]); }
+  const la=p.landA*DEG, le=[kx+p.landL*Math.cos(la), Math.max(0, ky-p.landL*Math.sin(la))];
+  pts.push(le,[le[0]+p.roll, le[1]]);
+  return {pts, lip:[lx,ly], knuckle:[kx,ky], landEnd:le, lipAngle:th};
+}
+function gY(prof,x){ const pts=prof.pts;
+  for(let i=0;i<pts.length-1;i++){ const a=pts[i],b=pts[i+1];
+    if(x>=a[0]&&x<=b[0]){ if(b[0]-a[0]<1e-9) return Math.max(a[1],b[1]); return a[1]+(x-a[0])/(b[0]-a[0])*(b[1]-a[1]); } }
+  return x<pts[0][0]?pts[0][1]:pts[pts.length-1][1]; }
+function flight(prof, v, wr){
+  const th=prof.lipAngle, dt=1/240;
+  let x=prof.lip[0], y=prof.lip[1]+wr, vx=v*Math.cos(th), vy=v*Math.sin(th), t=0, apex=y, path=[[x,y]];
+  while(t<7){
+    const nx=x+vx*dt, nvy=vy-G*dt, ny=y+((vy+nvy)/2)*dt, g=gY(prof,nx)+wr;
+    if(nx>prof.lip[0]+0.15 && ny<=g){ x=nx; y=g; t+=dt; path.push([x,y]); break; }
+    x=nx; y=ny; vy=nvy; t+=dt; if(y>apex) apex=y; path.push([x,y]);
+  }
+  return {x, y, t, apex:apex-(prof.lip[1]+wr), path};
+}
+function speedWindow(prof, wr){
+  let lo=null, hi=null;
+  const a=prof.knuckle[0]+0.40, b=prof.landEnd[0]-0.40;
+  for(let v=2.5; v<=16.0001; v+=0.05){
+    const r=flight(prof, v, wr);
+    const ok = r.x>=a && r.x<=b;
+    if(ok){ if(lo===null) lo=v; hi=v; }
+  }
+  return {lo, hi, a, b};
+}
+const WR=(29*0.0254)/2+0.058;
+
+/* ---- thumbnails ------------------------------------------------------ */
+function thumb(prof, v){
+  const W=340,H=132,pad=10;
+  const all=prof.pts.concat(v? flight(prof, v, WR).path : []);
+  let xmin=Infinity,xmax=-Infinity,ymax=-Infinity;
+  all.forEach(([x,y])=>{ xmin=Math.min(xmin,x); xmax=Math.max(xmax,x); ymax=Math.max(ymax,y); });
+  xmin=prof.lip[0]-6; xmax=Math.max(xmax, prof.landEnd[0]+1.5);
+  const ymin=-0.4; ymax=Math.max(ymax, 3)+0.5;
+  const s=Math.min((W-pad*2)/(xmax-xmin), (H-pad*2)/(ymax-ymin));
+  const ox=pad+((W-pad*2)-(xmax-xmin)*s)/2, oy=H-pad;
+  const PX=x=>ox+(x-xmin)*s, PY=y=>oy-(y-ymin)*s;
+  let d=prof.pts.map(([x,y],i)=>(i?'L':'M')+PX(x).toFixed(1)+' '+PY(y).toFixed(1)).join('');
+  const fill=d+'L'+PX(xmax).toFixed(1)+' '+(H+10)+'L'+PX(xmin).toFixed(1)+' '+(H+10)+'Z';
+  let g='<rect width="'+W+'" height="'+H+'" fill="oklch(24% 0.025 250)"/>';
+  for(let gx=Math.ceil(xmin/2)*2; gx<xmax; gx+=2)
+    g+='<line x1="'+PX(gx).toFixed(1)+'" y1="0" x2="'+PX(gx).toFixed(1)+'" y2="'+H+'" stroke="oklch(28% 0.018 250)"/>';
+  for(let gy=0; gy<ymax; gy+=1)
+    g+='<line x1="0" y1="'+PY(gy).toFixed(1)+'" x2="'+W+'" y2="'+PY(gy).toFixed(1)+'" stroke="oklch(28% 0.018 250)"/>';
+  g+='<path d="'+fill+'" fill="oklch(33% 0.022 250)"/><path d="'+d+'" fill="none" stroke="oklch(62% 0.03 250)" stroke-width="1.6"/>';
+  if(v){
+    const fp=flight(prof, v, WR).path;
+    const t=fp.map(([x,y],i)=>(i?'L':'M')+PX(x).toFixed(1)+' '+PY(y).toFixed(1)).join('');
+    g+='<path d="'+t+'" fill="none" stroke="oklch(58% 0.16 145)" stroke-width="2" stroke-dasharray="0"/>';
+    g+='<circle cx="'+PX(fp[fp.length-1][0]).toFixed(1)+'" cy="'+PY(fp[fp.length-1][1]).toFixed(1)+'" r="3" fill="oklch(58% 0.16 145)"/>';
+  }
+  g+='<circle cx="'+PX(prof.lip[0]).toFixed(1)+'" cy="'+PY(prof.lip[1]).toFixed(1)+'" r="2.6" fill="oklch(78% 0.02 250)"/>';
+  g+='<circle cx="'+PX(prof.knuckle[0]).toFixed(1)+'" cy="'+PY(prof.knuckle[1]).toFixed(1)+'" r="2.6" fill="oklch(78% 0.02 250)"/>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Side profile of the feature with the solved trajectory">'+g+'</svg>';
+}
+
+/* ---- render ---------------------------------------------------------- */
+function severity(j){
+  if(j.p.lipA>=40 || Math.abs(j.p.step)>=1.5 || j.p.gap>=10) return ['steep','demanding'];
+  if(j.p.lipA<=26 && j.p.gap<=6) return ['mellow','forgiving'];
+  return ['mid','intermediate'];
+}
+function renderJumps(filter){
+  const cards=JUMPS.filter(j=>!filter || (j.name+' '+j.tag+' '+j.note).toLowerCase().includes(filter)).map(j=>{
+    const prof=profile(j.p, j.kind), win=speedWindow(prof, WR);
+    const mid=win.lo!==null ? (win.lo+win.hi)/2 : null;
+    const r=mid? flight(prof, mid, WR) : null;
+    const [sc,sl]=severity(j);
+    const gLo=2.5, gHi=16;
+    const bar = win.lo!==null
+      ? '<div class="gauge"><i style="left:'+((win.lo-gLo)/(gHi-gLo)*100).toFixed(1)+'%;width:'+((win.hi-win.lo)/(gHi-gLo)*100).toFixed(1)+'%"></i><b style="left:'+((mid-gLo)/(gHi-gLo)*100).toFixed(1)+'%"></b></div>'
+        +'<div class="gscale"><span>2.5</span><span>16.0 m/s</span></div>'
+      : '<div class="gauge"></div><div class="gscale"><span>2.5</span><span>16.0 m/s</span></div>';
+    return '<article class="pcard" data-od-id="jump-card-'+j.id+'">'
+      +'<div class="thumb">'+thumb(prof, mid)+'<span class="tag">'+j.tag+'</span></div>'
+      +'<div class="hd"><h3>'+j.name+'</h3><span class="badge '+sc+'">'+sl+'</span></div>'
+      +'<p class="sub">'+j.note+'</p>'
+      +'<dl>'
+      +'<dt>Takeoff height / angle</dt><dd>'+j.p.lipH.toFixed(2)+' m · '+j.p.lipA+'°</dd>'
+      +'<dt>Gap / step Δ</dt><dd>'+j.p.gap.toFixed(1)+' m · '+(j.p.step>=0?'+':'−')+Math.abs(j.p.step).toFixed(1)+' m</dd>'
+      +'<dt>Landing angle / length</dt><dd>'+j.p.landA+'° · '+j.p.landL.toFixed(1)+' m</dd>'
+      +'<dt>Airtime at centre speed</dt><dd>'+(r? r.t.toFixed(3)+' s':'—')+'</dd>'
+      +'<dt>Apex above lip</dt><dd>'+(r? r.apex.toFixed(2)+' m':'—')+'</dd>'
+      +'</dl>'
+      +'<div class="win"><div class="lab">Solved entry-speed window</div>'
+      +'<div class="rng">'+(win.lo!==null ? win.lo.toFixed(2)+' – '+win.hi.toFixed(2)+' <small>m/s · centre '+mid.toFixed(2)+'</small>' : 'no speed lands cleanly')+'</div>'
+      +bar+'</div>'
+      +'<div class="ft"><a class="btn sm" href="workbench.html">Load in workbench</a>'
+      +'<span class="spacer" style="flex:1"></span>'
+      +'<span class="num" style="font-size:11px;color:var(--muted)">'+j.id+'</span></div>'
+      +'</article>';
+  });
+  $('jumpGrid').innerHTML = cards.length? cards.join('')
+    : '<div class="empty" style="grid-column:1/-1">No feature matches that filter.</div>';
+  $('nJumps').textContent=JUMPS.length;
+}
+function renderRiders(filter){
+  const rows=RIDERS.filter(r=>!filter||r.n.toLowerCase().includes(filter)).map(r=>
+    '<tr><td>'+r.n+(r.romNote?'<span class="desc">'+r.romNote+'</span>':'')+'</td>'
+    +'<td>'+r.h.toFixed(2)+' m</td><td>'+r.m+' kg</td><td>'+r.leg.toFixed(3)+'</td>'
+    +'<td>'+r.str.toFixed(2)+'×</td><td>'+Math.round(310*r.str)+' N·m</td>'
+    +'<td><a class="btn sm" href="workbench.html">Load</a></td></tr>');
+  $('riderBody').innerHTML=rows.join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted)">No profile matches that filter.</td></tr>';
+  $('nRiders').textContent=RIDERS.length;
+}
+function renderBikes(filter){
+  const rows=BIKES.filter(b=>!filter||b.n.toLowerCase().includes(filter)).map(b=>
+    '<tr><td>'+b.n+'</td><td>'+b.w+'″</td><td>'+b.wb.toFixed(3)+' m</td><td>'+b.cs.toFixed(3)+' m</td>'
+    +'<td>'+b.bb.toFixed(3)+' m</td><td>'+b.tr+' mm</td><td>'+b.k.toFixed(1)+' kN/m</td><td>'+b.m.toFixed(1)+' kg</td>'
+    +'<td><a class="btn sm" href="workbench.html">Load</a></td></tr>');
+  $('bikeBody').innerHTML=rows.join('')||'<tr><td colspan="9" style="text-align:center;color:var(--muted)">No build matches that filter.</td></tr>';
+  $('nBikes').textContent=BIKES.length;
+}
+function renderMoves(filter){
+  const ref=profile(JUMPS[1].p, 'table');
+  function run(m){
+    const th=ref.lipAngle, dt=1/960, v=8.9;
+    let x=ref.lip[0], y=ref.lip[1]+WR, vx=v*Math.cos(th), vy=v*Math.sin(th)+m.pop, t=0;
+    while(t<7){ const nx=x+vx*dt, nvy=vy-G*dt, ny=y+((vy+nvy)/2)*dt, g=gY(ref,nx)+WR;
+      if(nx>ref.lip[0]+0.15&&ny<=g){ t+=dt; x=nx; break; } x=nx;y=ny;vy=nvy;t+=dt; }
+    const surf=Math.atan2(gY(ref,x+0.05)-gY(ref,x-0.05),0.1);
+    return {t, att:(Math.atan2(v*Math.sin(th)+m.pop, v*Math.cos(th))+m.om*t)-surf};
+  }
+  const base=run(MOVES[0]);
+  const rows=MOVES.filter(m=>!filter||(m.n+' '+m.d).toLowerCase().includes(filter)).map(m=>{
+    const r=run(m), dT=r.t-base.t, dA=(r.att-base.att)/DEG;
+    const cls=x=>Math.abs(x)<0.0005?'flat':(x>0?'up':'down');
+    return '<tr><td>'+m.n+'<span class="desc">'+m.d+'</span></td>'
+      +'<td>'+m.pop.toFixed(2)+' m/s</td><td>'+m.om.toFixed(2)+' rad/s</td>'
+      +'<td style="color:'+(Math.abs(dT)<0.0005?'var(--muted)':(dT>0?'var(--accent-ink)':'oklch(45% 0.17 27)'))+';font-weight:'+(Math.abs(dT)<0.0005?400:700)+'">'
+        +(Math.abs(dT)<0.0005?'±0':(dT>0?'+':'−')+Math.abs(dT).toFixed(3))+' s</td>'
+      +'<td style="color:'+(Math.abs(dA)<0.05?'var(--muted)':'var(--fg)')+'">'+(Math.abs(dA)<0.05?'±0':(dA>0?'+':'−')+Math.abs(dA).toFixed(1))+'°</td>'
+      +'<td><a class="btn sm" href="workbench.html">Load</a></td></tr>';
+  });
+  $('moveBody').innerHTML=rows.join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No experiment matches that filter.</td></tr>';
+  $('nMoves').textContent=MOVES.length;
+}
+function renderAll(){
+  const f=$('q').value.trim().toLowerCase();
+  renderJumps(f); renderRiders(f); renderBikes(f); renderMoves(f);
+}
+document.querySelectorAll('.tabbar button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabbar button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+  document.querySelectorAll('[data-view]').forEach(s=>s.hidden = s.dataset.view!==b.dataset.tab);
+  try{ localStorage.setItem('jumplab.library.tab', b.dataset.tab); }catch(e){}
+}));
+$('q').addEventListener('input',renderAll);
+$('newBtn').addEventListener('click',()=>{ window.location.href='workbench.html'; });
+try{
+  const t=localStorage.getItem('jumplab.library.tab');
+  if(t){ const b=document.querySelector('.tabbar button[data-tab="'+t+'"]'); if(b) b.click(); }
+}catch(e){}
+renderAll();
+</script>
+</body>
+</html>

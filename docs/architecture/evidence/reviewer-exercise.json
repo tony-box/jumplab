@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "procedure": [
+    "Start from a clean dependency install and run npm run verify.",
+    "Open Workbench, edit one physical input, solve, and inspect source-labelled metrics.",
+    "Step one exact frame, export the scenario, reload offline, and re-import it.",
+    "Open Designer, change a measured bike dimension, and verify a worker-returned pose sample after changing a distance key.",
+    "Open Report and compare the accessible table with the deterministic charts.",
+    "Review physics limitations, compatibility report, browser matrix, and decision record."
+  ],
+  "targetMinutes": 30,
+  "status": "pending-independent-review",
+  "completedBy": null,
+  "startedAt": null,
+  "completedAt": null,
+  "durationMinutes": null,
+  "note": "Completion and duration require a real independent reviewer and are not inferred from automated tests."
+}

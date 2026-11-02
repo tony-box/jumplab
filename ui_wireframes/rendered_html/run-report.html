@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run report — 2D MTB Jump Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:oklch(98% 0.005 250); --surface:oklch(100% 0 0); --surface-2:oklch(96.5% 0.006 250);
+  --fg:oklch(22% 0.02 240); --muted:oklch(50% 0.018 240);
+  --border:oklch(90% 0.008 240); --border-strong:oklch(84% 0.01 240);
+  --accent:oklch(58% 0.16 145); --accent-ink:oklch(41% 0.12 145);
+  --stage:oklch(24% 0.025 250); --stage-fg:oklch(94% 0.008 250);
+  --warn:oklch(64% 0.14 75); --danger:oklch(55% 0.19 27); --info:oklch(56% 0.13 250);
+  --font-display:'Archivo','Segoe UI',system-ui,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);margin:0;letter-spacing:-.015em}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px;border-radius:3px}
+a{color:inherit}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.mark{display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:-.02em;text-decoration:none;color:var(--fg)}
+.mark .v{font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.nav{display:flex;gap:2px;margin-left:6px}
+.nav a{padding:6px 10px;border-radius:5px;text-decoration:none;color:var(--muted);font-size:13px;font-weight:500;transition:background .14s var(--ease),color .14s var(--ease)}
+.nav a:hover{background:var(--surface-2);color:var(--fg)}
+.nav a[aria-current="page"]{color:var(--fg);background:oklch(93% 0.008 250);font-weight:600}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;transition:background .14s var(--ease),transform .1s var(--ease)}
+.btn:hover{background:oklch(94% 0.008 250)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn.primary:hover{background:var(--accent-ink);color:oklch(99% 0.01 145)}
+.btn svg{width:14px;height:14px;flex:none}
+select{height:32px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);padding:0 9px;font-size:13px;font-weight:600;cursor:pointer;transition:background .14s var(--ease)}
+select:hover{background:oklch(94% 0.008 250)}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 22px 70px}
+.rhead{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--border-strong)}
+.rhead h1{font-size:27px;line-height:1.15;letter-spacing:-.025em}
+.rhead .sub{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-top:7px;letter-spacing:.01em}
+.compare{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.compare .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
+.swatch{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600}
+.swatch i{width:16px;height:3px;border-radius:2px}
+h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:32px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.stat{background:var(--surface);padding:13px 14px}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:23px;font-weight:500;letter-spacing:-.02em;line-height:1.1}
+.stat .v small{font-size:12px;color:var(--muted);margin-left:3px;font-weight:400}
+.stat .d{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:700;margin-top:5px}
+.stat .d.up{color:var(--accent-ink)} .stat .d.down{color:oklch(45% 0.17 27)} .stat .d.flat{color:var(--muted)}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{border:1px solid var(--border);border-radius:9px;background:var(--surface);overflow:hidden}
+.card .ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:11px 14px 9px;border-bottom:1px solid var(--border)}
+.card .ch h3{font-size:13.5px}
+.card .ch span{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.plot{background:var(--stage);padding:8px}
+.plot svg{display:block;width:100%;height:196px}
+.plot.tall svg{height:236px}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;text-align:right;padding:9px 12px;border-bottom:1px solid var(--border-strong);white-space:nowrap}
+th:first-child{text-align:left}
+td{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;text-align:right;padding:8px 12px;border-bottom:1px solid var(--border)}
+td:first-child{text-align:left;font-family:var(--font-body);font-size:13px;font-weight:500}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+td.up{color:var(--accent-ink);font-weight:700} td.down{color:oklch(45% 0.17 27);font-weight:700} td.flat{color:var(--muted)}
+td.pending{color:var(--muted);letter-spacing:.1em}
+.bounds{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.bound{border:1px solid var(--border);border-radius:9px;background:var(--surface);padding:14px}
+.bound h3{font-size:13.5px;margin-bottom:4px}
+.bound .m{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:500;margin:8px 0 6px}
+.bound p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+.excl{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.excl span{font-size:11.5px;font-weight:600;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:3px 8px;background:var(--surface-2)}
+.callout{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border:1px solid var(--border-strong);border-radius:9px;background:var(--surface-2);font-size:13px;line-height:1.55;margin-top:14px}
+.callout svg{width:17px;height:17px;flex:none;margin-top:2px;color:var(--muted)}
+.callout strong{font-family:var(--font-display)}
+@media (max-width:960px){.grid4{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.bounds{grid-template-columns:1fr}}
+@media (max-width:560px){.grid4{grid-template-columns:1fr}.wrap{padding:20px 14px 50px}}
+</style>
+</head>
+<body>
+<header class="topbar" data-od-id="topbar">
+  <a class="mark" href="index.html">JUMP LAB <span class="v">2D · v0.4</span></a>
+  <nav class="nav" aria-label="Primary">
+    <a href="workbench.html">Workbench</a>
+    <a href="designer.html">Designer</a>
+    <a href="run-report.html" aria-current="page">Report</a>
+    <a href="scenario-library.html">Library</a>
+    <a href="validation.html">Validation</a>
+  </nav>
+  <span class="spacer"></span>
+  <button class="btn" id="csvBtn" data-od-id="export-csv">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 2v8m0 0 3-3m-3 3L5 7M2.5 12.5h11" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Export frames CSV
+  </button>
+  <a class="btn primary" href="workbench.html" data-od-id="open-workbench">Open in workbench</a>
+</header>
+
+<div class="wrap">
+  <section class="rhead" data-od-id="report-header">
+    <div style="flex:1;min-width:280px">
+      <h1 id="title">Preload + extend on a 6 m tabletop</h1>
+      <div class="sub" id="sub">run 0x4c1a · 7.20 m/s entry · 74 kg rider · 13.4 kg hardtail · Δt 1/960 s</div>
+    </div>
+    <div class="compare" data-od-id="run-compare">
+      <span class="lbl">Run</span>
+      <select id="runSel" aria-label="Select run">
+        <option value="preload">preload + extend</option>
+        <option value="early">early extension</option>
+        <option value="late">late extension</option>
+        <option value="fore">fore shift</option>
+        <option value="aft">aft shift</option>
+      </select>
+      <span class="lbl">vs</span>
+      <select id="baseSel" aria-label="Select baseline">
+        <option value="neutral">neutral (pinned)</option>
+        <option value="preload">preload + extend</option>
+        <option value="early">early extension</option>
+        <option value="late">late extension</option>
+      </select>
+    </div>
+  </section>
+
+  <div style="display:flex;gap:18px;margin-top:14px;flex-wrap:wrap">
+    <span class="swatch"><i style="background:oklch(58% 0.16 145)"></i><span id="lgRun">preload + extend</span></span>
+    <span class="swatch" style="color:var(--muted)"><i style="background:oklch(62% 0.02 250)"></i><span id="lgBase">neutral (baseline)</span></span>
+  </div>
+
+  <h2 class="sec">Headline</h2>
+  <div class="grid4" data-od-id="headline-stats" id="headline"></div>
+
+  <h2 class="sec">Trajectory &amp; state</h2>
+  <div class="charts" data-od-id="charts">
+    <div class="card">
+      <div class="ch"><h3>Height above lip vs distance</h3><span id="cap1">m / m</span></div>
+      <div class="plot tall"><svg id="ch1" viewBox="0 0 620 236" preserveAspectRatio="none" role="img" aria-label="Trajectory height versus distance"></svg></div>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Vertical velocity vs time</h3><span id="cap2">m·s⁻¹ / s</span></div>
+      <div class="plot tall"><svg id="ch2" viewBox="0 0 620 236" preserveAspectRatio="none" role="img" aria-label="Vertical velocity versus time"></svg></div>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Bike pitch vs time</h3><span id="cap3">deg / s</span></div>
+      <div class="plot"><svg id="ch3" viewBox="0 0 620 196" preserveAspectRatio="none" role="img" aria-label="Bike pitch versus time"></svg></div>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Fork travel vs time</h3><span id="cap4">mm / s</span></div>
+      <div class="plot"><svg id="ch4" viewBox="0 0 620 196" preserveAspectRatio="none" role="img" aria-label="Fork travel versus time"></svg></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Full metric table</h2>
+  <div class="card">
+    <table data-od-id="metric-table">
+      <thead><tr><th>Metric</th><th>Run</th><th>Baseline</th><th>Δ</th><th>Source</th></tr></thead>
+      <tbody id="mtbody"></tbody>
+    </table>
+  </div>
+
+  <h2 class="sec">Energy balance</h2>
+  <div class="card">
+    <table data-od-id="energy-table">
+      <thead><tr><th>Term</th><th>Run</th><th>Baseline</th><th>Δ</th><th>Note</th></tr></thead>
+      <tbody id="etbody"></tbody>
+    </table>
+  </div>
+  <div class="callout" data-od-id="energy-note">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.3v4M8 4.9h.01" stroke-linecap="round"/></svg>
+    <span><strong>Read the residual, not the total.</strong> The ballistic phase is conservative by construction, so a non-zero residual measures integrator drift and nothing else. It is a check on the timestep, not a physical loss. Real dissipation — contact impulse, damper work, motor work — only appears once the Rapier core is attached, and those rows stay blank until then.</span>
+  </div>
+
+  <h2 class="sec">Published accuracy bounds</h2>
+  <div class="bounds" data-od-id="accuracy-bounds">
+    <div class="bound">
+      <h3>Ballistic phase</h3>
+      <div class="m" id="b1">—</div>
+      <p>Position error against the closed-form projectile solution over this run's airtime. The trapezoidal velocity update is exact under constant gravity, so this phase is limited by floating-point precision — not by the timestep. The bound that matters is set by the contact and constraint phases, which arrive with the core.</p>
+    </div>
+    <div class="bound">
+      <h3>Energy drift</h3>
+      <div class="m" id="b2">—</div>
+      <p>Residual as a fraction of kinetic energy at the lip. The convergence sweep on the <a href="validation.html">Validation</a> page shows how this scales with Δt.</p>
+    </div>
+    <div class="bound">
+      <h3>Model scope</h3>
+      <div class="m">simplified sagittal</div>
+      <p>The model is planar, ideally rolling and rigid outside the fork. Everything below is excluded on purpose and is not approximated badly — it is absent.</p>
+      <div class="excl">
+        <span>full suspension</span><span>3D balance</span><span>aerodynamics</span>
+        <span>tyre compliance</span><span>frame flex</span><span>muscle biomechanics</span>
+        <span>injury prediction</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const G=9.80665, DEG=Math.PI/180;
+const BASEP={kind:'table',lipH:1.2,lipA:32,rad:3.6,gap:6,step:0,landA:28,landL:5,roll:8,speed:8.9,startX:-12,
+  mass:74,bikeM:13.4,strength:1,wheel:29,travel:130,sag:22,k:26,c:1.4};
+const EXP={
+  neutral:{pop:0.00,omega:0.0,label:'neutral'},
+  preload:{pop:0.85,omega:-0.7,label:'preload + extend'},
+  early:{pop:0.55,omega:-1.5,label:'early extension'},
+  late:{pop:0.62,omega:1.3,label:'late extension'},
+  fore:{pop:0.10,omega:1.9,label:'fore shift'},
+  aft:{pop:0.15,omega:-2.1,label:'aft shift'}
+};
+function buildProfile(p){
+  const th=p.lipA*DEG,R=p.rad,pts=[[p.startX-4,0],[0,0]];
+  for(let i=1;i<=26;i++){const a=th*i/26;pts.push([R*Math.sin(a),R*(1-Math.cos(a))]);}
+  let lx=R*Math.sin(th),ly=R*(1-Math.cos(th));
+  if(p.lipH>ly){lx+=(p.lipH-ly)/Math.tan(th);ly=p.lipH;}
+  const kx=lx+p.gap, ky=Math.max(0.15,ly+p.step);
+  pts.push([lx,ly],[kx,ky]);
+  const la=p.landA*DEG, le=[kx+p.landL*Math.cos(la),Math.max(0,ky-p.landL*Math.sin(la))];
+  pts.push(le,[le[0]+p.roll,le[1]]);
+  return {pts,lip:[lx,ly],knuckle:[kx,ky],landEnd:le,landAngle:la,lipAngle:th};
+}
+function groundY(prof,x){const pts=prof.pts;
+  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];
+    if(x>=a[0]&&x<=b[0]){if(b[0]-a[0]<1e-9)return Math.max(a[1],b[1]);return a[1]+(x-a[0])/(b[0]-a[0])*(b[1]-a[1]);}}
+  return x<pts[0][0]?pts[0][1]:pts[pts.length-1][1];}
+function groundSlope(prof,x){const d=0.05;return Math.atan2(groundY(prof,x+d)-groundY(prof,x-d),2*d);}
+
+function simulate(expKey){
+  const p=BASEP, e=EXP[expKey], prof=buildProfile(p);
+  const wr=(p.wheel*0.0254)/2+0.058, M=p.mass+p.bikeM, th=prof.lipAngle, dt=1/960;
+  const sagM=(p.travel/1000)*(p.sag/100);
+  const vx0=p.speed*Math.cos(th), vy0=p.speed*Math.sin(th)+e.pop;
+  const vLip=Math.hypot(vx0,vy0), aLip=Math.atan2(vy0,vx0), omega=e.omega;
+  const lipX=prof.lip[0], lipY=prof.lip[1]+wr;
+  let x=lipX,y=lipY,vx=vx0,vy=vy0,t=0,apex=lipY,air=[];
+  let clearance=Infinity, maxProjErr=0;
+  while(t<6){
+    const ny=y+(vy-G*dt/2)*dt, nx=x+vx*dt, nvy=vy-G*dt;
+    const gy=groundY(prof,nx)+wr;
+    if(Math.abs(nx-prof.knuckle[0])<0.06) clearance=Math.min(clearance,y-(prof.knuckle[1]+wr));
+    // analytic comparison (closed-form projectile) for the published bound
+    const ax=lipX+vx0*t, ay=lipY+vy0*t-0.5*G*t*t;
+    maxProjErr=Math.max(maxProjErr,Math.hypot(x-ax,y-ay));
+    air.push({t,x,y,vx,vy,pitch:aLip+omega*t});
+    if(nx>lipX+0.15&&ny<=gy){ x=nx;y=gy;vy=nvy;t+=dt; air.push({t,x,y,vx,vy,pitch:aLip+omega*t}); break; }
+    x=nx;y=ny;vy=nvy;t+=dt; if(y>apex)apex=y;
+  }
+  if(clearance===Infinity) clearance=y-(prof.knuckle[1]+wr);
+  const surf=groundSlope(prof,x), vimp=Math.hypot(vx,vy);
+  const vn=Math.abs(-vx*Math.sin(surf)+vy*Math.cos(surf));
+  const attitude=(aLip+omega*t)-surf;
+  const mEff=M*0.42, kN=p.k*1000;
+  const xComp=Math.min(p.travel/1000, vn*Math.sqrt(mEff/kN)+sagM);
+  const fork=xComp/(1+p.c*1000/(2*Math.sqrt(kN*mEff)));
+  const keLip=0.5*M*vLip*vLip, dPE=M*G*(lipY-y), keImp=0.5*M*vimp*vimp;
+  return {label:e.label, prof, air, wr, M, lipX, lipY, sagM,
+    vLip, aLip, omega, pop:e.pop, airtime:t, apex:apex-lipY, distance:x-lipX, clearance,
+    vimp, surf, attitude, vn, fork, forkPct:fork/(p.travel/1000)*100,
+    keLip, dPE, keImp, resid:keImp-(keLip+dPE), projErr:maxProjErr};
+}
+
+/* ---- plotting ------------------------------------------------------- */
+function plot(svgId, series, xLab, yLab, W, Hh){
+  const pad={l:44,r:12,t:12,b:26};
+  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+  series.forEach(s=>s.pts.forEach(([px,py])=>{xmin=Math.min(xmin,px);xmax=Math.max(xmax,px);ymin=Math.min(ymin,py);ymax=Math.max(ymax,py);}));
+  const yr=(ymax-ymin)||1; ymin-=yr*0.10; ymax+=yr*0.10;
+  const PX=v=>pad.l+(v-xmin)/((xmax-xmin)||1)*(W-pad.l-pad.r);
+  const PY=v=>Hh-pad.b-(v-ymin)/((ymax-ymin)||1)*(Hh-pad.t-pad.b);
+  let g='';
+  const nx=5, ny=4;
+  for(let i=0;i<=nx;i++){ const v=xmin+(xmax-xmin)*i/nx, px=PX(v);
+    g+='<line x1="'+px.toFixed(1)+'" y1="'+pad.t+'" x2="'+px.toFixed(1)+'" y2="'+(Hh-pad.b)+'" stroke="oklch(31% 0.018 250)" stroke-width="1"/>';
+    g+='<text x="'+px.toFixed(1)+'" y="'+(Hh-8)+'" fill="oklch(58% 0.02 250)" font-family="JetBrains Mono, monospace" font-size="9.5" text-anchor="middle">'+v.toFixed(v>10?0:1)+'</text>';}
+  for(let i=0;i<=ny;i++){ const v=ymin+(ymax-ymin)*i/ny, py=PY(v);
+    g+='<line x1="'+pad.l+'" y1="'+py.toFixed(1)+'" x2="'+(W-pad.r)+'" y2="'+py.toFixed(1)+'" stroke="'+(Math.abs(v)<1e-9?'oklch(42% 0.02 250)':'oklch(31% 0.018 250)')+'" stroke-width="1"/>';
+    g+='<text x="'+(pad.l-6)+'" y="'+(py+3.4).toFixed(1)+'" fill="oklch(58% 0.02 250)" font-family="JetBrains Mono, monospace" font-size="9.5" text-anchor="end">'+v.toFixed(Math.abs(ymax-ymin)>30?0:1)+'</text>';}
+  series.forEach(s=>{
+    let d='', a='';
+    s.pts.forEach(([px,py],i)=>{ d+=(i?'L':'M')+PX(px).toFixed(1)+' '+PY(py).toFixed(1); });
+    if(s.fill){
+      a=d+'L'+PX(s.pts[s.pts.length-1][0]).toFixed(1)+' '+PY(Math.max(ymin,0)).toFixed(1)
+        +'L'+PX(s.pts[0][0]).toFixed(1)+' '+PY(Math.max(ymin,0)).toFixed(1)+'Z';
+      g+='<path d="'+a+'" fill="'+s.fill+'"/>';
+    }
+    g+='<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.w||2)+'"'+(s.dash?' stroke-dasharray="'+s.dash+'"':'')+' stroke-linejoin="round"/>';
+  });
+  g+='<text x="'+(W-pad.r)+'" y="'+(pad.t+2)+'" fill="oklch(50% 0.02 250)" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="end">'+xLab+'</text>';
+  g+='<text x="'+(pad.l+4)+'" y="'+(pad.t+2)+'" fill="oklch(50% 0.02 250)" font-family="JetBrains Mono, monospace" font-size="9">'+yLab+'</text>';
+  document.getElementById(svgId).innerHTML=g;
+}
+
+/* ---- render --------------------------------------------------------- */
+const $=id=>document.getElementById(id);
+const f=(n,d=2)=>isFinite(n)?n.toFixed(d):'—';
+function dcls(diff,eps,invert){ if(Math.abs(diff)<eps) return 'flat'; return (diff>0)!==!!invert?'up':'down'; }
+function dtxt(diff,d,unit,eps){ if(Math.abs(diff)<eps) return '±0'; return (diff>0?'+':'−')+Math.abs(diff).toFixed(d)+(unit||''); }
+
+let RUN, BASE;
+function render(){
+  RUN=simulate($('runSel').value); BASE=simulate($('baseSel').value);
+  $('title').textContent=RUN.label.charAt(0).toUpperCase()+RUN.label.slice(1)+' on a 6 m tabletop';
+  $('sub').textContent='run 0x4c1a · '+BASEP.speed.toFixed(2)+' m/s entry · '+BASEP.mass+' kg rider · '+BASEP.bikeM+' kg hardtail · Δt 1/960 s';
+  $('lgRun').textContent=RUN.label; $('lgBase').textContent=BASE.label+' (baseline)';
+
+  const head=[
+    ['Airtime', RUN.airtime, BASE.airtime, 3, 's', 0.0005, false],
+    ['Apex above lip', RUN.apex, BASE.apex, 2, 'm', 0.005, false],
+    ['Distance', RUN.distance, BASE.distance, 2, 'm', 0.005, false],
+    ['Landing attitude', RUN.attitude/DEG, BASE.attitude/DEG, 1, '°', 0.05, 'mag']
+  ];
+  $('headline').innerHTML=head.map(([k,a,b,d,u,eps,inv])=>{
+    const diff=a-b;
+    // "nearer zero is better" for attitude: colour by magnitude, not by sign
+    const colourBy = inv==='mag' ? (Math.abs(b)-Math.abs(a)) : diff;
+    const cls = Math.abs(diff)<eps ? 'flat' : (colourBy>0 ? 'up' : 'down');
+    return '<div class="stat" data-od-id="stat-'+k.toLowerCase().replace(/[^a-z]+/g,'-')+'"><div class="k">'+k+'</div>'
+      +'<div class="v">'+f(a,d)+'<small>'+u+'</small></div>'
+      +'<div class="d '+cls+'">'+dtxt(diff,d,' '+u,eps)+' vs baseline</div></div>';
+  }).join('');
+
+  // charts — decimate the 1/960 s frame stream for plotting, keeping the last frame
+  const dec=r=>{ const step=Math.max(1, Math.floor(r.air.length/180)), out=[];
+    for(let i=0;i<r.air.length;i+=step) out.push(r.air[i]);
+    if(out[out.length-1]!==r.air[r.air.length-1]) out.push(r.air[r.air.length-1]);
+    return out; };
+  const cvt=r=>dec(r).map(p=>[p.x-r.lipX, p.y-r.lipY]);
+  plot('ch1',[
+    {pts:cvt(BASE), color:'oklch(62% 0.02 250)', w:1.8, dash:'5 4'},
+    {pts:cvt(RUN), color:'oklch(58% 0.16 145)', w:2.4, fill:'oklch(58% 0.16 145 / .16)'}
+  ],'distance from lip (m)','height (m)',620,236);
+  plot('ch2',[
+    {pts:dec(BASE).map(p=>[p.t,p.vy]), color:'oklch(62% 0.02 250)', w:1.8, dash:'5 4'},
+    {pts:dec(RUN).map(p=>[p.t,p.vy]), color:'oklch(58% 0.16 145)', w:2.4, fill:'oklch(58% 0.16 145 / .13)'}
+  ],'t (s)','v_y (m/s)',620,236);
+  plot('ch3',[
+    {pts:dec(BASE).map(p=>[p.t,p.pitch/DEG]), color:'oklch(62% 0.02 250)', w:1.8, dash:'5 4'},
+    {pts:dec(RUN).map(p=>[p.t,p.pitch/DEG]), color:'oklch(58% 0.16 145)', w:2.4}
+  ],'t (s)','pitch (°)',620,196);
+  // fork: sag through the air, then damped decay after impact
+  const forkSeries=r=>{
+    const out=[[0, r.sagM*1000],[r.airtime, r.sagM*1000]];
+    for(let i=0;i<=40;i++){ const tt=r.airtime+i*0.012;
+      out.push([tt, (r.sagM + r.fork*Math.exp(-i*0.09)*Math.cos(i*0.16))*1000]); }
+    return out;
+  };
+  plot('ch4',[
+    {pts:forkSeries(BASE), color:'oklch(62% 0.02 250)', w:1.8, dash:'5 4'},
+    {pts:forkSeries(RUN), color:'oklch(58% 0.16 145)', w:2.4, fill:'oklch(58% 0.16 145 / .13)'}
+  ],'t (s)','travel (mm)',620,196);
+
+  // metric table
+  const rows=[
+    ['Speed at lip', RUN.vLip, BASE.vLip, 2, ' m/s', 0.005, 'preview'],
+    ['Launch angle', RUN.aLip/DEG, BASE.aLip/DEG, 1, '°', 0.05, 'preview'],
+    ['Angular rate', RUN.omega, BASE.omega, 2, ' rad/s', 0.005, 'preview'],
+    ['Extension Δv', RUN.pop, BASE.pop, 2, ' m/s', 0.005, 'preview'],
+    ['Airtime', RUN.airtime, BASE.airtime, 3, ' s', 0.0005, 'preview'],
+    ['Apex above lip', RUN.apex, BASE.apex, 2, ' m', 0.005, 'preview'],
+    ['Distance from lip', RUN.distance, BASE.distance, 2, ' m', 0.005, 'preview'],
+    ['Knuckle clearance', RUN.clearance, BASE.clearance, 2, ' m', 0.005, 'preview'],
+    ['Impact speed', RUN.vimp, BASE.vimp, 2, ' m/s', 0.005, 'preview'],
+    ['Landing surface angle', RUN.surf/DEG, BASE.surf/DEG, 1, '°', 0.05, 'preview'],
+    ['Landing attitude Δ', RUN.attitude/DEG, BASE.attitude/DEG, 1, '°', 0.05, 'preview', 'mag'],
+    ['Normal impact velocity', RUN.vn, BASE.vn, 2, ' m/s', 0.005, 'preview'],
+    ['Fork travel used', RUN.fork*1000, BASE.fork*1000, 0, ' mm', 0.5, 'estimate']
+  ];
+  $('mtbody').innerHTML = rows.map(([k,a,b,d,u,eps,src,mode])=>{
+    const diff=a-b;
+    const colourBy = mode==='mag' ? (Math.abs(b)-Math.abs(a)) : diff;
+    const cls = Math.abs(diff)<eps ? 'flat' : (colourBy>0 ? 'up' : 'down');
+    return '<tr><td>'+k+'</td><td>'+f(a,d)+u+'</td><td>'+f(b,d)+u+'</td>'
+      +'<td class="'+cls+'">'+dtxt(diff,d,u,eps)+'</td>'
+      +'<td style="color:var(--muted);font-size:11.5px">'+src+'</td></tr>';
+  }).join('')
+  + ['Peak wheel load','Motor work','Contact impulse','Solver residual','Saturation events'].map(k=>
+      '<tr><td>'+k+'</td><td class="pending">— — —</td><td class="pending">— — —</td><td class="pending">—</td>'
+      +'<td style="color:var(--muted);font-size:11.5px">solver core</td></tr>').join('');
+
+  // energy
+  const er=[
+    ['KE at lip', RUN.keLip/1000, BASE.keLip/1000, 2, ' kJ', '½·m·v² with m = rider + bike'],
+    ['ΔPE lip → landing', RUN.dPE/1000, BASE.dPE/1000, 2, ' kJ', 'm·g·Δh over the ballistic arc'],
+    ['KE at impact', RUN.keImp/1000, BASE.keImp/1000, 2, ' kJ', 'measured at first contact'],
+    ['Integrator residual', RUN.resid, BASE.resid, 1, ' J', 'should trend to zero as Δt shrinks']
+  ];
+  $('etbody').innerHTML=er.map(([k,a,b,d,u,n])=>{
+    const diff=a-b;
+    return '<tr><td>'+k+'</td><td>'+f(a,d)+u+'</td><td>'+f(b,d)+u+'</td>'
+      +'<td class="'+dcls(diff,Math.pow(10,-d)/2)+'">'+dtxt(diff,d,u,Math.pow(10,-d)/2)+'</td>'
+      +'<td style="text-align:left;font-family:var(--font-body);font-size:12.5px;color:var(--muted)">'+n+'</td></tr>';
+  }).join('')
+  + '<tr><td>Motor work</td><td class="pending">— — —</td><td class="pending">— — —</td><td class="pending">—</td><td style="text-align:left;font-family:var(--font-body);font-size:12.5px;color:var(--muted)">requires joint-motor telemetry from the core</td></tr>'
+  + '<tr><td>Contact impulse</td><td class="pending">— — —</td><td class="pending">— — —</td><td class="pending">—</td><td style="text-align:left;font-family:var(--font-body);font-size:12.5px;color:var(--muted)">requires contact manifold from the core</td></tr>';
+
+  $('b1').textContent = RUN.projErr < 1e-6 ? '< 1 µm' : '± '+(RUN.projErr*1000).toFixed(2)+' mm';
+  $('b2').textContent='± '+(Math.abs(RUN.resid)/RUN.keLip*100).toFixed(3)+' %';
+}
+$('runSel').addEventListener('change',render);
+$('baseSel').addEventListener('change',render);
+$('csvBtn').addEventListener('click',()=>{
+  const rows=[['t_s','x_m','y_m','vx_ms','vy_ms','pitch_deg']]
+    .concat(RUN.air.map(p=>[p.t.toFixed(5),p.x.toFixed(5),p.y.toFixed(5),p.vx.toFixed(5),p.vy.toFixed(5),(p.pitch/DEG).toFixed(4)]));
+  const blob=new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='jumplab-run-'+$('runSel').value+'.csv'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+try{
+  const s=JSON.parse(localStorage.getItem('jumplab.report')||'{}');
+  if(s.run) $('runSel').value=s.run;
+  if(s.base) $('baseSel').value=s.base;
+}catch(e){}
+window.addEventListener('beforeunload',()=>{
+  try{ localStorage.setItem('jumplab.report', JSON.stringify({run:$('runSel').value, base:$('baseSel').value})); }catch(e){}
+});
+render();
+</script>
+</body>
+</html>

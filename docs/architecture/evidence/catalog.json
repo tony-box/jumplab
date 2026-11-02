@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T20:00:00.000Z",
+  "evidence": [
+    {
+      "id": "ev-rapier-determinism",
+      "kind": "primary-doc",
+      "title": "Rapier determinism guide",
+      "source": "https://rapier.rs/docs/user_guides/rust/determinism",
+      "observedAt": "2026-08-24",
+      "claim": "Enhanced determinism mode is designed for reproducible results across IEEE-754 targets, including WASM."
+    },
+    {
+      "id": "ev-rapier-joints",
+      "kind": "primary-doc",
+      "title": "Rapier joints and motors",
+      "source": "https://rapier.rs/docs/user_guides/javascript/joints",
+      "observedAt": "2026-08-24",
+      "claim": "Rapier supports articulated joints, limits, and motor controls required by the model."
+    },
+    {
+      "id": "ev-wasm-bindgen",
+      "kind": "primary-doc",
+      "title": "wasm-bindgen boundary documentation",
+      "source": "https://wasm-bindgen.github.io/wasm-bindgen/",
+      "observedAt": "2026-08-24",
+      "claim": "Rust/WASM modules can expose a typed JavaScript boundary suitable for worker integration."
+    },
+    {
+      "id": "ev-worker-api",
+      "kind": "primary-doc",
+      "title": "Web Workers API",
+      "source": "https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API",
+      "observedAt": "2026-08-24",
+      "claim": "Dedicated workers support off-main-thread computation and message-based progress/result flow."
+    },
+    {
+      "id": "ev-service-worker-api",
+      "kind": "primary-doc",
+      "title": "Service Worker API",
+      "source": "https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API",
+      "observedAt": "2026-08-24",
+      "claim": "Service workers can provide offline shell support after first successful online load."
+    },
+    {
+      "id": "ev-indexeddb-api",
+      "kind": "primary-doc",
+      "title": "IndexedDB API",
+      "source": "https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API",
+      "observedAt": "2026-08-24",
+      "claim": "IndexedDB supports structured local persistence needed for scenarios and run records."
+    },
+    {
+      "id": "ev-playwright-projects",
+      "kind": "primary-doc",
+      "title": "Playwright projects",
+      "source": "https://playwright.dev/docs/test-projects",
+      "observedAt": "2026-08-24",
+      "claim": "Playwright project matrices support cross-browser workflows and deterministic validation checks."
+    },
+    {
+      "id": "ev-react-19",
+      "kind": "primary-doc",
+      "title": "React 19 release notes",
+      "source": "https://react.dev/blog/2024/12/05/react-19",
+      "observedAt": "2026-08-24",
+      "claim": "React 19 is a stable baseline for the UI contract in this project."
+    },
+    {
+      "id": "ev-vite-guide",
+      "kind": "primary-doc",
+      "title": "Vite guide and browser support",
+      "source": "https://vite.dev/guide/",
+      "observedAt": "2026-08-24",
+      "claim": "Vite supports static asset builds, workers, and modern browser targets for this stack."
+    },
+    {
+      "id": "ev-pkg-web",
+      "kind": "package-metadata",
+      "title": "Web app dependency baselines",
+      "source": "apps/web/package.json",
+      "observedAt": "2026-08-24",
+      "claim": "React 19.2.8, React Router 8.3.0, Vite 8.2.2, Dexie 4.4.5, Zustand 5.0.15, and Zod 4.4.3 are pinned."
+    },
+    {
+      "id": "ev-pkg-physics",
+      "kind": "package-metadata",
+      "title": "Physics crate dependency baselines",
+      "source": "crates/physics-core/Cargo.toml",
+      "observedAt": "2026-08-24",
+      "claim": "Rust 1.98.0 and rapier2d 0.35.2 with enhanced determinism are pinned in the physics crate."
+    },
+    {
+      "id": "ev-spec-gates",
+      "kind": "validation-result",
+      "title": "Specification gate requirements",
+      "source": "specs/001-stack-evaluation/spec.md",
+      "observedAt": "2026-08-24",
+      "claim": "Hard gates require determinism, worker isolation, offline operation, accessibility, and browser matrix coverage."
+    },
+    {
+      "id": "ev-research-candidates",
+      "kind": "validation-result",
+      "title": "Candidate and risk comparison",
+      "source": "specs/001-stack-evaluation/research.md",
+      "observedAt": "2026-08-24",
+      "claim": "Selected and alternative candidates are documented with constraints, risks, and revisit triggers."
+    },
+    {
+      "id": "ev-physics-spike",
+      "kind": "validation-result",
+      "title": "Native, WASM, and browser physics evidence",
+      "source": "docs/architecture/evidence/physics-spike.json",
+      "observedAt": "2026-08-25",
+      "claim": "Determinism, parity, convergence, exclusions, telemetry, solve latency, and cancellation gates pass."
+    },
+    {
+      "id": "ev-browser-offline-spike",
+      "kind": "validation-result",
+      "title": "Browser and offline spike evidence",
+      "source": "docs/architecture/evidence/browser-offline-spike.json",
+      "observedAt": "2026-08-25",
+      "claim": "Automated engine workflows, offline reload, accessibility, provenance, visual framing, latency, and frame pacing pass."
+    },
+    {
+      "id": "ev-designer-offline",
+      "kind": "validation-result",
+      "title": "Designer offline route evidence",
+      "source": "docs/architecture/evidence/designer-offline-validation.md",
+      "observedAt": "2026-09-01",
+      "claim": "The canonical Designer route and legacy pose replacement redirect work without network access."
+    },
+    {
+      "id": "ev-compatibility",
+      "kind": "validation-result",
+      "title": "Compatibility registry report",
+      "source": "docs/architecture/evidence/compatibility-report.json",
+      "observedAt": "2026-08-25",
+      "claim": "Current scenario, protocol, frame-layout, and persistence versions are accepted and unknown versions are rejected."
+    },
+    {
+      "id": "ev-security",
+      "kind": "validation-result",
+      "title": "Dependency and security release checks",
+      "source": "docs/architecture/evidence/dependency-check.json",
+      "observedAt": "2026-08-25",
+      "claim": "Lock integrity, declared licenses, vulnerability audit, secret scan, and CycloneDX SBOM generation pass."
+    }
+  ]
+}

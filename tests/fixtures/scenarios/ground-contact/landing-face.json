@@ -1,0 +1,13 @@
+{
+  "id": "ground-contact-landing-face",
+  "name": "Drive into landing face",
+  "jump": {
+    "kind": "gap",
+    "lipHeight": 0.5,
+    "lipAngle": 1.09,
+    "transitionLength": 0.4,
+    "gap": 1.5,
+    "stepDelta": 0.8
+  },
+  "entry": { "speed": 2.5 }
+}

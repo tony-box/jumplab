@@ -1,0 +1,27 @@
+node_modules/
+.npm/
+*.log
+
+# JavaScript/TypeScript build artifacts
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Rust artifacts
+target/
+crates/**/target/
+
+# Generated package outputs
+packages/schema/dist/
+apps/web/dist/
+apps/web/dev-dist/
+crates/physics-core/pkg/
+crates/physics-core/pkg-node/
+crates/physics-core/pkg-benchmark-node/
+apps/web/public/physics/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+[
+  { "id": "bundled-standard", "file": "bundled-standard.json", "finalGrounded": false },
+  { "id": "flat-roll", "file": "flat-roll.json", "finalGrounded": true },
+  { "id": "curved-lip", "file": "curved-lip.json", "finalGrounded": false },
+  { "id": "true-gap-void", "file": "true-gap-void.json", "finalGrounded": false },
+  { "id": "stepdown-edge", "file": "stepdown-edge.json", "finalGrounded": false },
+  { "id": "low-speed", "file": "low-speed.json", "finalGrounded": true },
+  { "id": "landing-face", "file": "landing-face.json", "finalGrounded": false },
+  { "id": "entry-coverage", "file": "entry-coverage.json", "finalGrounded": true },
+  { "id": "anchor-mismatch", "file": "anchor-mismatch.json", "finalGrounded": true },
+  { "id": "contact-output", "file": "contact-output.json", "finalGrounded": true }
+]

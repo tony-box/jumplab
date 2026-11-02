@@ -1,0 +1,5 @@
+{
+  "id": "ground-contact-stepdown-edge",
+  "name": "Stepdown clean edge",
+  "jump": { "kind": "stepdown", "gap": 2.5, "stepDelta": -1.2 }
+}

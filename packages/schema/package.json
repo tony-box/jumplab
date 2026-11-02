@@ -1,0 +1,56 @@
+{
+  "name": "@bike-jumper/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./scenario": {
+      "types": "./dist/scenario.d.ts",
+      "default": "./dist/scenario.js"
+    },
+    "./run-result": {
+      "types": "./dist/run-result.d.ts",
+      "default": "./dist/run-result.js"
+    },
+    "./worker-protocol": {
+      "types": "./dist/worker-protocol.d.ts",
+      "default": "./dist/worker-protocol.js"
+    },
+    "./input-contract": {
+      "types": "./dist/input-contract.d.ts",
+      "default": "./dist/input-contract.js"
+    },
+    "./decision": {
+      "types": "./dist/decision.d.ts",
+      "default": "./dist/decision.js"
+    },
+    "./canonical": {
+      "types": "./dist/canonical.d.ts",
+      "default": "./dist/canonical.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./compatibility": {
+      "types": "./dist/migrations/compatibility.d.ts",
+      "default": "./dist/migrations/compatibility.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}

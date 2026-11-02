@@ -1,0 +1,15 @@
+{
+  "id": "ground-contact-low-speed",
+  "name": "Low speed no takeoff",
+  "jump": {
+    "kind": "table",
+    "lipHeight": 0.35,
+    "lipAngle": 0.49,
+    "transitionLength": 1,
+    "gap": 0,
+    "landingAngle": 0.08,
+    "landingLength": 8,
+    "rollout": 20
+  },
+  "entry": { "speed": 1.5, "startX": -8 }
+}

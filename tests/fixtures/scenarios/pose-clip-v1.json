@@ -1,0 +1,22 @@
+{
+  "id": "8f5ae67b-86cd-4111-af3a-7d2a758d6d16",
+  "name": "Neutral preload",
+  "interpolation": "cubic",
+  "keys": [
+    {
+      "s": -6,
+      "label": "Approach",
+      "targets": { "knee": 0.95, "hip": 0.45, "spine": 0.12 }
+    },
+    {
+      "s": 0,
+      "label": "Lip",
+      "targets": { "knee": 1.02, "hip": 0.5, "spine": 0.18 }
+    },
+    {
+      "s": 4,
+      "label": "Flight",
+      "targets": { "knee": 0.72, "hip": 0.32, "spine": 0.05 }
+    }
+  ]
+}

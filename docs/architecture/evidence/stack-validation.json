@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T18:49:53.653Z",
+  "validatorVersion": "1.0.0",
+  "decisionId": "DR-001-selected-stack",
+  "decisionStatus": "provisionally-approved",
+  "selectedCandidateId": "cand-selected-stack",
+  "winnerCandidateId": "cand-selected-stack",
+  "hardGateCriteria": [
+    "determinism-gate",
+    "worker-isolation-gate",
+    "offline-gate",
+    "license-gate"
+  ],
+  "weightedCriteria": [
+    {
+      "id": "physics-correctness",
+      "weight": 25
+    },
+    {
+      "id": "browser-offline",
+      "weight": 15
+    },
+    {
+      "id": "runtime-performance",
+      "weight": 10
+    },
+    {
+      "id": "a11y-testability",
+      "weight": 10
+    },
+    {
+      "id": "maintainability-boundaries",
+      "weight": 15
+    },
+    {
+      "id": "maturity-security-license",
+      "weight": 10
+    },
+    {
+      "id": "observability-debug",
+      "weight": 5
+    },
+    {
+      "id": "build-migration-risk",
+      "weight": 10
+    }
+  ],
+  "scorecard": [
+    {
+      "id": "cand-selected-stack",
+      "name": "React + TypeScript + Vite with Rust/Rapier WASM in a dedicated worker",
+      "normalizedScore": 90,
+      "hardGatePassed": true,
+      "rejectedByHardGate": false,
+      "weightedBreakdown": [
+        {
+          "criterionId": "physics-correctness",
+          "weight": 25,
+          "score": 5,
+          "normalizedContribution": 25
+        },
+        {
+          "criterionId": "browser-offline",
+          "weight": 15,
+          "score": 5,
+          "normalizedContribution": 15
+        },
+        {
+          "criterionId": "runtime-performance",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        },
+        {
+          "criterionId": "a11y-testability",
+          "weight": 10,
+          "score": 5,
+          "normalizedContribution": 10
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "weight": 15,
+          "score": 4,
+          "normalizedContribution": 12
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "weight": 10,
+          "score": 5,
+          "normalizedContribution": 10
+        },
+        {
+          "criterionId": "observability-debug",
+          "weight": 5,
+          "score": 4,
+          "normalizedContribution": 4
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "weight": 10,
+          "score": 3,
+          "normalizedContribution": 6
+        }
+      ],
+      "hardGateResults": [
+        {
+          "criterionId": "determinism-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "offline-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "license-gate",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "cand-js-rapier-worker",
+      "name": "TypeScript app with deterministic Rapier npm binding in dedicated worker",
+      "normalizedScore": 80,
+      "hardGatePassed": true,
+      "rejectedByHardGate": false,
+      "weightedBreakdown": [
+        {
+          "criterionId": "physics-correctness",
+          "weight": 25,
+          "score": 4,
+          "normalizedContribution": 20
+        },
+        {
+          "criterionId": "browser-offline",
+          "weight": 15,
+          "score": 5,
+          "normalizedContribution": 15
+        },
+        {
+          "criterionId": "runtime-performance",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        },
+        {
+          "criterionId": "a11y-testability",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "weight": 15,
+          "score": 3,
+          "normalizedContribution": 9
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        },
+        {
+          "criterionId": "observability-debug",
+          "weight": 5,
+          "score": 4,
+          "normalizedContribution": 4
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        }
+      ],
+      "hardGateResults": [
+        {
+          "criterionId": "determinism-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "offline-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "license-gate",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "cand-main-thread-mixed",
+      "name": "Main-thread TypeScript-first stack with lightweight physics integration",
+      "normalizedScore": 54,
+      "hardGatePassed": false,
+      "rejectedByHardGate": true,
+      "weightedBreakdown": [
+        {
+          "criterionId": "physics-correctness",
+          "weight": 25,
+          "score": 2,
+          "normalizedContribution": 10
+        },
+        {
+          "criterionId": "browser-offline",
+          "weight": 15,
+          "score": 4,
+          "normalizedContribution": 12
+        },
+        {
+          "criterionId": "runtime-performance",
+          "weight": 10,
+          "score": 2,
+          "normalizedContribution": 4
+        },
+        {
+          "criterionId": "a11y-testability",
+          "weight": 10,
+          "score": 3,
+          "normalizedContribution": 6
+        },
+        {
+          "criterionId": "maintainability-boundaries",
+          "weight": 15,
+          "score": 2,
+          "normalizedContribution": 6
+        },
+        {
+          "criterionId": "maturity-security-license",
+          "weight": 10,
+          "score": 3,
+          "normalizedContribution": 6
+        },
+        {
+          "criterionId": "observability-debug",
+          "weight": 5,
+          "score": 2,
+          "normalizedContribution": 2
+        },
+        {
+          "criterionId": "build-migration-risk",
+          "weight": 10,
+          "score": 4,
+          "normalizedContribution": 8
+        }
+      ],
+      "hardGateResults": [
+        {
+          "criterionId": "determinism-gate",
+          "passed": false
+        },
+        {
+          "criterionId": "worker-isolation-gate",
+          "passed": false
+        },
+        {
+          "criterionId": "offline-gate",
+          "passed": true
+        },
+        {
+          "criterionId": "license-gate",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "evidenceCoverage": {
+    "totalEvidenceItems": 18,
+    "referencedEvidenceItems": 12
+  },
+  "alternatives": [
+    {
+      "id": "cand-js-rapier-worker",
+      "name": "TypeScript app with deterministic Rapier npm binding in dedicated worker",
+      "rejectedByHardGate": false,
+      "normalizedScore": 80
+    },
+    {
+      "id": "cand-main-thread-mixed",
+      "name": "Main-thread TypeScript-first stack with lightweight physics integration",
+      "rejectedByHardGate": true,
+      "normalizedScore": 54
+    }
+  ]
+}

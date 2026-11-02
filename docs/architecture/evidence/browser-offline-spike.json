@@ -1,0 +1,84 @@
+{
+  "artifactVersion": 1,
+  "capturedAt": "2026-09-02T18:49:51.026Z",
+  "status": "pass",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.14.1"
+  },
+  "routes": [
+    "/workbench",
+    "/designer",
+    "/report"
+  ],
+  "browserEvidence": [
+    {
+      "name": "chromium",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": {
+        "inputP95Ms": 16.30000001192093,
+        "frameP50Ms": 16.699999999999818,
+        "fps": 59.88023952095874,
+        "droppedFrames": 0,
+        "presentationSolveDispatches": 0,
+        "status": "pass"
+      },
+      "designerPerformance": {
+        "updateCount": 30,
+        "withinBudget": 30,
+        "withinBudgetRate": 1,
+        "updateP95Ms": 97.30000001192093,
+        "status": "pass",
+        "continuousBikeEdits": 20,
+        "modeSwitches": 10,
+        "validatedKeyCount": 64,
+        "staleCancellation": {
+          "discarded": true,
+          "inspectionCount": 2,
+          "finalReach": 0.47
+        }
+      },
+      "canvas": {
+        "minimum": 47,
+        "maximum": 244,
+        "nonTransparent": 145092
+      },
+      "offlineReload": true
+    },
+    {
+      "name": "firefox",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": null,
+      "designerPerformance": null,
+      "canvas": null,
+      "offlineReload": false
+    },
+    {
+      "name": "webkit",
+      "workflow": "pass",
+      "metricProvenance": "pass",
+      "performance": null,
+      "designerPerformance": null,
+      "canvas": null,
+      "offlineReload": false
+    }
+  ],
+  "checks": {
+    "renderedReferenceParity": "pass",
+    "sourceProvenance": "pass",
+    "axeSeriousCritical": "pass",
+    "keyboardAndCanvasAlternative": "pass",
+    "localSaveExportImport": "pass",
+    "serviceWorkerOfflineReload": "pass"
+  },
+  "thresholds": {
+    "inputP95Ms": 100,
+    "minimumFps": 55,
+    "maximumDroppedFrames": 0,
+    "presentationSolveDispatches": 0,
+    "designerUpdatesUnder100ms": 0.95
+  }
+}
