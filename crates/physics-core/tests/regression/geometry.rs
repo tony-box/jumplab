@@ -1,27 +1,17 @@
-use physics_core::geometry::{derive_rider_segments, generate_terrain_profile};
-use physics_core::scenario::Scenario;
+use physics_core::geometry::generate_terrain_profile;
+use physics_core::scenario::{JumpKind, Scenario, kicker_transition_length};
 
 const STANDARD_SCENARIO: &str =
     include_str!("../../../../tests/fixtures/scenarios/standard-v1.json");
 
 #[test]
-fn derives_deterministic_terrain_and_anthropometry_in_canonical_order() {
+fn derives_deterministic_terrain() {
     let scenario: Scenario =
         serde_json::from_str(STANDARD_SCENARIO).expect("valid scenario fixture");
 
     let terrain = generate_terrain_profile(&scenario, 0.25);
     let terrain_second = generate_terrain_profile(&scenario, 0.25);
     assert_eq!(terrain.segments, terrain_second.segments);
-
-    let segments = derive_rider_segments(&scenario.rider);
-    let canonical_names: Vec<&str> = segments
-        .iter()
-        .map(|segment| segment.name.as_str())
-        .collect();
-    assert_eq!(
-        canonical_names,
-        vec!["torso", "thigh", "shank", "upper_arm", "forearm"]
-    );
 }
 
 #[test]
@@ -44,29 +34,41 @@ fn jump_shape_controls_do_not_move_the_fixed_approach() {
 }
 
 #[test]
-fn takeoff_length_owns_horizontal_feature_positions() {
+fn kicker_height_and_angle_set_the_arc_length_and_feature_positions() {
     let scenario: Scenario = serde_json::from_str(STANDARD_SCENARIO).unwrap();
-    let baseline = generate_terrain_profile(&scenario, 0.05);
 
-    for mutate in [
-        |scenario: &mut Scenario| scenario.jump.lip_height = 2.0,
-        |scenario: &mut Scenario| scenario.jump.lip_angle = 0.9,
-    ] {
+    for (height, angle) in [(2.0, 0.82), (1.2, 0.9), (0.6, 0.5)] {
         let mut changed = scenario.clone();
-        mutate(&mut changed);
+        changed.jump.lip_height = height;
+        changed.jump.lip_angle = angle;
+        let length = kicker_transition_length(height, angle);
         let terrain = generate_terrain_profile(&changed, 0.05);
-        assert_eq!(terrain.lip_x, baseline.lip_x);
-        assert_eq!(terrain.landing_start_x, baseline.landing_start_x);
+        assert!((terrain.lip_x - length).abs() < 1.0e-5);
+        assert!((terrain.landing_start_x - (length + changed.jump.gap)).abs() < 1.0e-5);
     }
-
-    let mut longer = scenario.clone();
-    longer.jump.transition_length = 3.0;
-    let terrain = generate_terrain_profile(&longer, 0.05);
-    assert_eq!(terrain.lip_x, 3.0);
-    assert_eq!(terrain.landing_start_x, 3.0 + longer.jump.gap);
-    assert_eq!(terrain.approach_start_x, baseline.approach_start_x);
 }
 
+#[test]
+fn drops_take_their_authored_transition_length() {
+    let mut drop: Scenario = serde_json::from_str(STANDARD_SCENARIO).unwrap();
+    drop.jump.kind = JumpKind::Drop;
+    drop.jump.lip_angle = 0.0;
+    drop.jump.step_delta = -1.5;
+    drop.jump.transition_length = 3.0;
+    drop.validate().expect("valid drop");
+    let terrain = generate_terrain_profile(&drop, 0.05);
+    assert_eq!(terrain.lip_x, 3.0);
+    assert_eq!(terrain.landing_start_x, 3.0 + drop.jump.gap);
+}
+
+#[test]
+fn kicker_transition_length_must_match_the_arc() {
+    let mut scenario: Scenario = serde_json::from_str(STANDARD_SCENARIO).unwrap();
+    scenario.validate().expect("fixture is consistent");
+    scenario.jump.transition_length += 0.1;
+    let error = scenario.validate().unwrap_err();
+    assert!(error.contains("derived kicker length"), "{error}");
+}
 #[test]
 fn bezier_surfaces_are_monotone_and_join_rollout_horizontally() {
     let scenario: Scenario = serde_json::from_str(STANDARD_SCENARIO).unwrap();
@@ -136,7 +138,7 @@ fn takeoff_slope_rises_to_the_requested_lip_angle_without_rolling_over() {
         .filter(|point| point[0] >= 0.0)
         .collect();
     let slopes: Vec<_> = lip_points
-        .windows(31)
+        .windows(11)
         .map(|window| {
             let first = window.first().unwrap();
             let last = window.last().unwrap();

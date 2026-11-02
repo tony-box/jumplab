@@ -1,15 +1,5 @@
 {
   "id": "ground-contact-flat-roll",
   "name": "Flat roll equilibrium",
-  "jump": {
-    "kind": "table",
-    "lipHeight": 0,
-    "lipAngle": 0.05,
-    "gap": 0,
-    "stepDelta": 0,
-    "landingAngle": 0,
-    "landingLength": 20,
-    "rollout": 20
-  },
-  "entry": { "speed": 3 }
+  "entry": { "speed": 3, "startX": -40 }
 }

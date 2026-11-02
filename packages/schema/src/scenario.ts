@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 import { hashScenario } from "./canonical";
-import { migrateScenarioFile, migrateScenarioValue } from "./migrations/index";
+import {
+  KICKER_TRANSITION_MAX,
+  KICKER_TRANSITION_MIN,
+  kickerTransitionLength,
+  migrateScenarioFile,
+  migrateScenarioValue
+} from "./migrations/index";
+import { SCENARIO_SCHEMA_VERSION } from "./versions";
 
 const semverPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+].+)?$/;
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -10,39 +17,60 @@ export const SCENARIO_FILE_FORMAT = "bike-jumper-scenario" as const;
 
 const finiteNumber = z.number().refine(Number.isFinite, "Expected a finite number");
 
-export const minimumLipAngle = (lipHeight: number, transitionLength: number): number =>
-  Math.atan((1.5 * lipHeight) / transitionLength);
-
 /** Drops roll off an edge instead of kicking, so their exit tangent may be level or falling. */
 export const DROP_LIP_ANGLE_MIN = -0.35;
 export const DROP_LIP_ANGLE_MAX = 0.35;
+export const KICKER_LIP_ANGLE_MIN = 0.05;
 export const MAX_LIP_ANGLE = 1.5;
+/** A stored kicker transition length must agree with the derived arc length within this. */
+export const TRANSITION_LENGTH_TOLERANCE = 1e-3;
 
+/**
+ * Lip angles a jump accepts. Kickers are circular arcs, so the angle must also keep the derived
+ * transition length within its supported range for the given height.
+ */
 export const lipAngleRange = (jump: {
   kind?: string;
   lipHeight: number;
-  transitionLength: number;
 }): { minimum: number; maximum: number } =>
   jump.kind === "drop"
     ? { minimum: DROP_LIP_ANGLE_MIN, maximum: DROP_LIP_ANGLE_MAX }
     : {
-        minimum: Math.max(0.05, minimumLipAngle(jump.lipHeight, jump.transitionLength)),
-        maximum: MAX_LIP_ANGLE
+        minimum: Math.max(
+          KICKER_LIP_ANGLE_MIN,
+          2 * Math.atan(jump.lipHeight / KICKER_TRANSITION_MAX)
+        ),
+        maximum: Math.min(MAX_LIP_ANGLE, 2 * Math.atan(jump.lipHeight / KICKER_TRANSITION_MIN))
       };
 
 export const normalizeLipAngle = (
-  jump: { kind?: string; lipHeight: number; lipAngle: number; transitionLength: number },
+  jump: { kind?: string; lipHeight: number; lipAngle: number },
   step = 0.01
 ): number => {
   const { minimum, maximum } = lipAngleRange(jump);
-  return Math.min(Math.max(jump.lipAngle, Math.ceil(minimum / step - 1e-9) * step), maximum);
+  const steppedMinimum = Math.ceil(minimum / step - 1e-9) * step;
+  const steppedMaximum = Math.floor(maximum / step + 1e-9) * step;
+  return Math.min(Math.max(jump.lipAngle, steppedMinimum), steppedMaximum);
 };
 
+/** Keeps a jump's derived fields consistent after an edit: kickers take their arc length. */
+export const normalizeJump = <
+  T extends { kind: string; lipHeight: number; lipAngle: number; transitionLength: number }
+>(
+  jump: T
+): T => {
+  if (jump.kind === "drop") return jump;
+  const lipAngle = normalizeLipAngle(jump);
+  return {
+    ...jump,
+    lipAngle,
+    transitionLength: kickerTransitionLength(jump.lipHeight, lipAngle)
+  };
+};
 export const jointLimitSchema = z
   .object({
     min: finiteNumber.min(-Math.PI).max(Math.PI),
-    max: finiteNumber.min(-Math.PI).max(Math.PI),
-    tauMax: finiteNumber.min(0).max(2000)
+    max: finiteNumber.min(-Math.PI).max(Math.PI)
   })
   .strict()
   .superRefine((value, context) => {
@@ -87,23 +115,37 @@ export const jumpSpecSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    const { minimum: minimumAngle, maximum: maximumAngle } = lipAngleRange(value);
-    if (value.lipAngle + 1e-9 < minimumAngle) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `lipAngle must be at least ${minimumAngle.toFixed(3)} rad for this height and transition length`,
-        path: ["lipAngle"]
-      });
+    if (value.kind === "drop") {
+      if (value.lipAngle < DROP_LIP_ANGLE_MIN || value.lipAngle > DROP_LIP_ANGLE_MAX) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `drop lipAngle must be between ${DROP_LIP_ANGLE_MIN} and ${DROP_LIP_ANGLE_MAX} rad`,
+          path: ["lipAngle"]
+        });
+      }
+    } else {
+      if (value.lipAngle < KICKER_LIP_ANGLE_MIN) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `kicker lipAngle must be at least ${KICKER_LIP_ANGLE_MIN} rad`,
+          path: ["lipAngle"]
+        });
+      }
+      const derived = kickerTransitionLength(value.lipHeight, value.lipAngle);
+      if (derived < KICKER_TRANSITION_MIN || derived > KICKER_TRANSITION_MAX) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `this height and lip angle need a ${derived.toFixed(2)} m transition, outside ${KICKER_TRANSITION_MIN}-${KICKER_TRANSITION_MAX} m`,
+          path: ["lipAngle"]
+        });
+      } else if (Math.abs(value.transitionLength - derived) > TRANSITION_LENGTH_TOLERANCE) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `kicker transitionLength must equal the derived arc length ${derived.toFixed(4)} m`,
+          path: ["transitionLength"]
+        });
+      }
     }
-
-    if (value.lipAngle - 1e-9 > maximumAngle) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `lipAngle must be at most ${maximumAngle.toFixed(3)} rad for a ${value.kind} jump`,
-        path: ["lipAngle"]
-      });
-    }
-
     if ((value.kind === "table" || value.kind === "gap") && value.stepDelta !== 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -129,6 +171,21 @@ export const jumpSpecSchema = z
     }
   });
 
+/**
+ * How hard and quickly the rider moves their body relative to the bike. Frequencies are in
+ * rad/s; strengths are multiples of rider weight (torque: weight at `pitchLever` metres).
+ */
+export const riderCouplingSchema = z
+  .object({
+    linearFrequency: finiteNumber.min(5).max(80),
+    pitchFrequency: finiteNumber.min(5).max(80),
+    dampingRatio: finiteNumber.min(0.2).max(3),
+    foreAftStrength: finiteNumber.min(0.1).max(4),
+    verticalStrength: finiteNumber.min(0.1).max(6),
+    pitchLever: finiteNumber.min(0.05).max(1)
+  })
+  .strict();
+
 export const riderSpecSchema = z
   .object({
     height: finiteNumber.min(1.2).max(2.2),
@@ -136,8 +193,7 @@ export const riderSpecSchema = z
     legRatio: finiteNumber.min(0.35).max(0.6),
     armRatio: finiteNumber.min(0.3).max(0.5),
     strengthScale: finiteNumber.gt(0).max(3),
-    kp: finiteNumber.min(0).max(5000),
-    kd: finiteNumber.min(0).max(500),
+    coupling: riderCouplingSchema,
     joints: z
       .object({
         knee: jointLimitSchema,
@@ -271,14 +327,23 @@ const supportedOutputHz = z.union([
 /** The rider coupling and rigid contacts need at least this physics rate to stay stable. */
 export const MIN_PHYSICS_HZ = 240;
 
+/** Bounded in-flight corrections a rider makes without thinking about them. */
+export const riderInstinctSchema = z
+  .object({
+    enabled: z.boolean(),
+    maxOffset: finiteNumber.min(0).max(0.25),
+    maxAngle: finiteNumber.min(0).max(0.5)
+  })
+  .strict();
+
 export const solverConfigSchema = z
   .object({
     dt: supportedDt,
     substeps: z.int().min(1).max(16),
     ccd: z.boolean(),
-    seed: z.int().min(0).max(4294967295),
     outputHz: supportedOutputHz,
-    solverVersion: z.string().min(1).max(80)
+    solverVersion: z.string().min(1).max(80),
+    riderInstinct: riderInstinctSchema
   })
   .strict()
   .superRefine((value, context) => {
@@ -306,7 +371,7 @@ export const scenarioSchema = z.preprocess(
   migrateScenarioValue,
   z
     .object({
-      schemaVersion: z.literal(3),
+      schemaVersion: z.literal(SCENARIO_SCHEMA_VERSION),
       id: z.string().uuid(),
       name: z.string().min(1).max(80),
       jump: jumpSpecSchema,
@@ -330,7 +395,7 @@ export const versionStampSchema = z
 export const scenarioFileSchema = z
   .object({
     format: z.literal(SCENARIO_FILE_FORMAT),
-    schemaVersion: z.literal(3),
+    schemaVersion: z.literal(SCENARIO_SCHEMA_VERSION),
     exportedBy: versionStampSchema,
     scenario: scenarioSchema,
     contentHash: z.string().regex(hashPattern, "Expected lowercase SHA-256 hash")
@@ -349,6 +414,8 @@ export type JointLimit = z.infer<typeof jointLimitSchema>;
 export type SuspensionSpec = z.infer<typeof suspensionSpecSchema>;
 export type JumpSpec = z.infer<typeof jumpSpecSchema>;
 export type RiderSpec = z.infer<typeof riderSpecSchema>;
+export type RiderCoupling = z.infer<typeof riderCouplingSchema>;
+export type RiderInstinct = z.infer<typeof riderInstinctSchema>;
 export type BikeGeometrySpec = z.infer<typeof bikeGeometrySpecSchema>;
 export type BikeSpec = z.infer<typeof bikeSpecSchema>;
 export type EntrySpec = z.infer<typeof entrySpecSchema>;

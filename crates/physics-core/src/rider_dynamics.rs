@@ -14,16 +14,6 @@ use crate::geometry::{BikeContactPoints, Point2, rider_link_lengths};
 use crate::pose::{AchievedPoseLandmarks, KNEE_FLEXION_RAD, build_skeleton, wrap_angle};
 use crate::scenario::{PoseTargets, RiderSpec};
 
-/// Representative actuator bandwidths. Limb position control is a few hertz.
-pub const DEFAULT_LINEAR_FREQUENCY_RAD_S: f32 = 30.0;
-pub const DEFAULT_PITCH_FREQUENCY_RAD_S: f32 = 25.0;
-pub const DEFAULT_DAMPING_RATIO: f32 = 1.0;
-/// Force caps as multiples of rider weight: legs push harder than arms pull fore/aft.
-pub const DEFAULT_FORE_AFT_WEIGHT_MULTIPLE: f32 = 1.5;
-pub const DEFAULT_VERTICAL_WEIGHT_MULTIPLE: f32 = 3.0;
-/// Torque cap as rider weight acting at this lever arm.
-pub const DEFAULT_PITCH_LEVER_M: f32 = 0.4;
-
 const GRAVITY_M_S2: f32 = 9.81;
 const REACH_MARGIN_M: f32 = 1.0e-3;
 const RECONSTRUCTION_ITERATIONS: usize = 16;
@@ -41,16 +31,19 @@ pub struct CouplingGains {
 }
 
 impl CouplingGains {
-    pub fn representative(rider: &RiderSpec) -> Self {
+    /// Gains from the rider's coupling settings, with strengths scaled by rider weight and
+    /// `strength_scale`.
+    pub fn from_rider(rider: &RiderSpec) -> Self {
+        let coupling = &rider.coupling;
         let weight = rider.mass * GRAVITY_M_S2 * rider.strength_scale;
         Self {
-            linear_frequency: DEFAULT_LINEAR_FREQUENCY_RAD_S,
-            linear_damping_ratio: DEFAULT_DAMPING_RATIO,
-            pitch_frequency: DEFAULT_PITCH_FREQUENCY_RAD_S,
-            pitch_damping_ratio: DEFAULT_DAMPING_RATIO,
-            max_force_fore_aft: weight * DEFAULT_FORE_AFT_WEIGHT_MULTIPLE,
-            max_force_vertical: weight * DEFAULT_VERTICAL_WEIGHT_MULTIPLE,
-            max_torque: weight * DEFAULT_PITCH_LEVER_M,
+            linear_frequency: coupling.linear_frequency,
+            linear_damping_ratio: coupling.damping_ratio,
+            pitch_frequency: coupling.pitch_frequency,
+            pitch_damping_ratio: coupling.damping_ratio,
+            max_force_fore_aft: weight * coupling.fore_aft_strength,
+            max_force_vertical: weight * coupling.vertical_strength,
+            max_torque: weight * coupling.pitch_lever,
         }
     }
 }
@@ -197,7 +190,7 @@ pub fn coupling_command(
 }
 
 /// Natural frequency of the skeletal stop that engages past the reachable workspace.
-pub const WORKSPACE_FREQUENCY_RAD_S: f32 = 80.0;
+pub const WORKSPACE_FREQUENCY_RAD_S: f32 = 160.0;
 const WORKSPACE_ENGAGE_M: f32 = 1.0e-4;
 
 /// One-sided stop that carries load through the skeleton once the rider is pushed past the
@@ -237,6 +230,8 @@ pub fn workspace_force(
 pub struct Reconstruction {
     pub landmarks: AchievedPoseLandmarks,
     pub targets: PoseTargets,
+    pub shoulder: f32,
+    pub elbow: f32,
     /// Centre of mass of the rebuilt skeleton.
     pub com: Point2,
     /// Distance between the requested centre of mass and the rebuilt skeleton's.
@@ -376,6 +371,8 @@ pub fn reconstruct_skeleton_within(
         best = Some(Reconstruction {
             landmarks: skeleton.landmarks,
             targets,
+            shoulder: skeleton.shoulder,
+            elbow: skeleton.elbow,
             com: rebuilt_com,
             residual,
             projected: projected_any,

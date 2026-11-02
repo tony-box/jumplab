@@ -17,7 +17,9 @@ import {
   runResultSchema
 } from "./run-result";
 
-export const PROTOCOL_VERSION = 3 as const;
+import { PROTOCOL_VERSION } from "./versions";
+
+export { PROTOCOL_VERSION } from "./versions";
 
 const finiteNumber = z.number().refine(Number.isFinite, "Expected a finite number");
 

@@ -5,6 +5,7 @@ use rapier2d::na::ComplexField;
 use crate::bike::{BikeMassProperties, derive_bike_mass_properties};
 use crate::scenario::{
     BIKE_GEOMETRY_MODEL_VERSION, BikeFlavor, BikeSpec, JumpKind, RiderSpec, Scenario,
+    kicker_transition_length,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -23,13 +24,6 @@ pub struct TerrainProfile {
     pub lip_x: f32,
     pub landing_start_x: f32,
     pub sample_step: f32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RiderSegment {
-    pub name: String,
-    pub length: f32,
-    pub mass: f32,
 }
 
 /// A finite bike-local point in metres (positive x forward, positive y up).
@@ -845,12 +839,30 @@ pub fn bike_contact_points(bike: &BikeSpec) -> BikeContactPoints {
 pub fn generate_terrain_profile(scenario: &Scenario, step: f32) -> TerrainProfile {
     let step_size = if step > 0.0 { step } else { 0.25 };
     let jump = &scenario.jump;
-    let lip_len = jump.transition_length;
+    let lip_len = if jump.is_kicker() {
+        kicker_transition_length(jump.lip_height, jump.lip_angle)
+    } else {
+        jump.transition_length
+    };
     let wheel_radius = scenario.bike.wheel_size * 0.0254 * 0.5;
     let approach_start = scenario.entry.start_x - scenario.bike.wheelbase * 0.5 - wheel_radius;
     let mut approach_points = vec![[approach_start, 0.0], [0.0, 0.0]];
 
-    if jump.lip_height.abs() > f32::EPSILON {
+    if jump.is_kicker() {
+        // Constant-radius transition: flat at the base, leaving the lip at the authored angle.
+        let radius = jump.lip_height / (1.0 - libm::cosf(jump.lip_angle));
+        let segment_count = ((radius * jump.lip_angle) / step_size).ceil().max(1.0) as usize;
+        approach_points.extend((1..=segment_count).map(|index| {
+            let angle = jump.lip_angle * index as f32 / segment_count as f32;
+            [
+                quantize_terrain(radius * libm::sinf(angle)),
+                quantize_terrain(radius * (1.0 - libm::cosf(angle))),
+            ]
+        }));
+        if let Some(lip) = approach_points.last_mut() {
+            *lip = [quantize_terrain(lip_len), quantize_terrain(jump.lip_height)];
+        }
+    } else {
         let tangent = libm::tanf(jump.lip_angle);
         // Only a rising exit can overshoot the lip; a level or falling edge keeps the full handle.
         let end_handle_x = if tangent > 0.0 {
@@ -869,8 +881,6 @@ pub fn generate_terrain_profile(scenario: &Scenario, step: f32) -> TerrainProfil
             step_size,
         );
         approach_points.append(&mut lip_points.drain(1..).collect());
-    } else {
-        approach_points.push([lip_len, 0.0]);
     }
 
     let landing_start_x = lip_len + jump.gap;
@@ -1029,6 +1039,21 @@ pub fn nearest_surface_distance(profile: &TerrainProfile, point: [f32; 2]) -> Op
     nearest_surface_edge(profile, point).map(|(distance, _)| distance)
 }
 
+/// Riding-surface slope angle (radians, counter-clockwise from +x) at `x`, from a central
+/// difference over the terrain height. `None` over a true gap.
+pub fn terrain_slope_angle_at(profile: &TerrainProfile, x: f32) -> Option<f32> {
+    const HALF_SPAN_M: f32 = 0.05;
+    let left = terrain_height_at(profile, x - HALF_SPAN_M);
+    let right = terrain_height_at(profile, x + HALF_SPAN_M);
+    let center = terrain_height_at(profile, x);
+    match (left, center, right) {
+        (Some(left), _, Some(right)) => Some(libm::atan2f(right - left, 2.0 * HALF_SPAN_M)),
+        (Some(left), Some(center), None) => Some(libm::atan2f(center - left, HALF_SPAN_M)),
+        (None, Some(center), Some(right)) => Some(libm::atan2f(right - center, HALF_SPAN_M)),
+        _ => None,
+    }
+}
+
 pub fn nearest_surface_clearance(
     profile: &TerrainProfile,
     center: [f32; 2],
@@ -1069,36 +1094,4 @@ fn nearest_surface_edge(profile: &TerrainProfile, point: [f32; 2]) -> Option<(f3
         }
     }
     nearest
-}
-
-pub fn derive_rider_segments(rider: &RiderSpec) -> Vec<RiderSegment> {
-    let links = rider_link_lengths(rider);
-
-    vec![
-        RiderSegment {
-            name: "torso".to_string(),
-            length: links.torso,
-            mass: rider.mass * 0.42,
-        },
-        RiderSegment {
-            name: "thigh".to_string(),
-            length: links.thigh,
-            mass: rider.mass * 0.15,
-        },
-        RiderSegment {
-            name: "shank".to_string(),
-            length: links.shank,
-            mass: rider.mass * 0.10,
-        },
-        RiderSegment {
-            name: "upper_arm".to_string(),
-            length: links.upper_arm,
-            mass: rider.mass * 0.06,
-        },
-        RiderSegment {
-            name: "forearm".to_string(),
-            length: links.forearm,
-            mass: rider.mass * 0.04,
-        },
-    ]
 }

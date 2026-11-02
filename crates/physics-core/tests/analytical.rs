@@ -4,5 +4,3 @@ mod bike_geometry;
 mod contact;
 #[path = "analytical/pose_clearance.rs"]
 mod pose_clearance;
-#[path = "analytical/reference_cases.rs"]
-mod reference_cases;

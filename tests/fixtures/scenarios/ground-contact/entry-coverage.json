@@ -1,14 +1,5 @@
 {
   "id": "ground-contact-entry-coverage",
-  "name": "Entry before legacy terrain",
-  "jump": {
-    "kind": "table",
-    "lipHeight": 0,
-    "lipAngle": 0.05,
-    "gap": 0,
-    "landingAngle": 0,
-    "landingLength": 20,
-    "rollout": 20
-  },
+  "name": "Entry far before the jump",
   "entry": { "speed": 2, "startX": -30 }
 }

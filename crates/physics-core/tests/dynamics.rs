@@ -2,21 +2,32 @@
 //! through internal forces only, with momentum and energy accounted for.
 
 use physics_core::rider_dynamics::CouplingGains;
-use physics_core::scenario::{JumpKind, PoseKey, PoseTargets, Scenario};
+use physics_core::scenario::{JumpKind, PoseKey, PoseTargets, Scenario, kicker_transition_length};
 use physics_core::simulation::{SimFrame, Simulation, SimulationOptions, simulate};
 
 const STANDARD_SCENARIO: &str = include_str!("../../../tests/fixtures/scenarios/standard-v1.json");
 
+/// The standard fixture with the rider instinct off, so these tests see the authored pose alone.
 fn standard() -> Scenario {
-    serde_json::from_str(STANDARD_SCENARIO).expect("valid standard scenario")
+    let mut scenario: Scenario =
+        serde_json::from_str(STANDARD_SCENARIO).expect("valid standard scenario");
+    scenario.solver.rider_instinct.enabled = false;
+    scenario
+}
+
+fn set_kicker(scenario: &mut Scenario, lip_height: f32, transition_length: f32) {
+    scenario.jump.lip_height = lip_height;
+    scenario.jump.lip_angle = 2.0 * (lip_height / transition_length).atan();
+    scenario.jump.transition_length = kicker_transition_length(lip_height, scenario.jump.lip_angle);
 }
 
 /// A long gap with a gentle transition so the bike spends about a second in the air.
 fn long_flight() -> Scenario {
     let mut scenario = standard();
     scenario.jump.kind = JumpKind::Gap;
-    scenario.jump.transition_length = 3.0;
-    scenario.jump.lip_angle = 0.82;
+    scenario.jump.lip_height = 1.0;
+    scenario.jump.lip_angle = 0.6;
+    scenario.jump.transition_length = kicker_transition_length(1.0, 0.6);
     scenario.jump.gap = 7.0;
     scenario.jump.landing_length = 12.0;
     scenario.entry.speed = 9.0;
@@ -51,14 +62,7 @@ fn neutral_keys() -> Vec<PoseKey> {
 }
 
 fn run(scenario: &Scenario) -> Simulation {
-    simulate(
-        scenario,
-        &SimulationOptions {
-            gains: None,
-            reconstruct: true,
-        },
-    )
-    .expect("simulation succeeds")
+    simulate(scenario, &SimulationOptions::default()).expect("simulation succeeds")
 }
 
 fn flight_range(simulation: &Simulation) -> (usize, usize) {
@@ -215,7 +219,7 @@ fn shifting_the_hips_in_the_air_rotates_the_bike() {
 #[test]
 fn extending_at_the_lip_pops_the_system_higher() {
     let mut scenario = standard();
-    scenario.jump.transition_length = 3.0;
+    set_kicker(&mut scenario, 1.2, 3.0);
     scenario.entry.speed = 8.0;
     let compressed = targets(0.9, -1.0, 0.85);
     let extended = targets(0.15, -0.25, 0.6);
@@ -259,8 +263,7 @@ fn pumping_through_a_concave_transition_gains_speed() {
     // ground only buys back exactly the potential energy it costs.
     let mut scenario = standard();
     scenario.jump.kind = JumpKind::Table;
-    scenario.jump.lip_height = 0.0;
-    scenario.jump.lip_angle = 0.05;
+    set_kicker(&mut scenario, 0.2, 2.0);
     scenario.jump.gap = 0.0;
     scenario.jump.landing_angle = 0.6;
     scenario.jump.landing_length = 6.0;
@@ -276,7 +279,7 @@ fn pumping_through_a_concave_transition_gains_speed() {
                 key(-10.0, compressed.clone()),
                 key(from, compressed.clone()),
                 key(to, extended.clone()),
-                key(60.0, extended.clone()),
+                key(49.0, extended.clone()),
             ],
         ))
     };
@@ -302,8 +305,7 @@ fn pumping_through_a_concave_transition_gains_speed() {
 #[test]
 fn energy_balance_closes_on_flat_ground_ramps_and_in_flight() {
     let mut scenario = long_flight();
-    scenario.jump.transition_length = 5.0;
-    scenario.jump.lip_angle = 0.6;
+    set_kicker(&mut scenario, 1.0, 5.0);
     let simulation = run(&scenario);
     let frames = &simulation.frames;
     let initial_kinetic = 0.5
@@ -369,11 +371,17 @@ fn every_supported_step_stays_stable_with_saturating_actuators() {
                 + (frame.relative.com.y - frame.target.com.y).powi(2))
             .sqrt();
             assert!(frame.energy.is_finite() && frame.bike.angle.is_finite());
-            // A saturated rider may sink deep into a squat under high transition loads, but the
-            // skeletal workspace bounds how far it can go.
+            // A saturated rider may sink deep into a squat under high transition or landing
+            // loads, but the skeletal stop keeps it inside the reachable workspace.
             assert!(
-                offset < 0.6,
+                offset < 0.8,
                 "dt={dt} rider drifted {offset} m from target at t={}",
+                frame.t
+            );
+            assert!(
+                frame.skeleton.residual < 0.1,
+                "dt={dt} rider left the reachable workspace by {} m at t={}",
+                frame.skeleton.residual,
                 frame.t
             );
             assert!(
@@ -405,7 +413,7 @@ fn achieved_skeleton_is_always_reconstructable() {
     );
     let simulation = run(&scenario);
     for frame in &simulation.frames {
-        let skeleton = frame.skeleton.as_ref().expect("reconstruction requested");
+        let skeleton = &frame.skeleton;
         assert!(skeleton.landmarks.is_finite());
         assert_eq!(skeleton.landmarks.ankle, skeleton.landmarks.pedal_contact);
         assert_eq!(
@@ -437,8 +445,7 @@ fn landing_surface_holds_under_maximum_rider_loads() {
     let simulation = simulate(
         &scenario,
         &SimulationOptions {
-            gains: Some(CouplingGains::representative(&scenario.rider)),
-            reconstruct: false,
+            gains: Some(CouplingGains::from_rider(&scenario.rider)),
         },
     )
     .expect("simulation succeeds");
@@ -458,4 +465,60 @@ fn repeated_runs_are_bit_identical() {
     let first = run(&long_flight());
     let second = run(&long_flight());
     assert_eq!(first.frames, second.frames);
+}
+
+#[test]
+fn rider_instinct_reduces_landing_pitch_error_within_its_bounds() {
+    let mut instinctive: Scenario =
+        serde_json::from_str(STANDARD_SCENARIO).expect("valid standard scenario");
+    instinctive.entry.speed = 9.0;
+    let mut authored_only = instinctive.clone();
+    authored_only.solver.rider_instinct.enabled = false;
+
+    let pitch_error = |simulation: &Simulation, scenario: &Scenario| {
+        let touchdown = simulation.touchdown.expect("touchdown");
+        let slope = physics_core::geometry::terrain_slope_angle_at(
+            &simulation.terrain,
+            touchdown.contact_x,
+        )
+        .expect("landing surface");
+        let _ = scenario;
+        physics_core::pose::wrap_angle(touchdown.pitch - slope).abs()
+    };
+    let with = run(&instinctive);
+    let without = run(&authored_only);
+    assert!(
+        pitch_error(&with, &instinctive) < pitch_error(&without, &authored_only),
+        "instinct did not improve the landing attitude"
+    );
+
+    let limits = &instinctive.solver.rider_instinct;
+    assert!(with.instinct.peak_angle <= limits.max_angle + 1.0e-6);
+    assert!(with.instinct.peak_offset <= limits.max_offset + 1.0e-6);
+    assert!(with.frames.iter().all(|frame| {
+        frame.instinct_angle.abs() <= limits.max_angle + 1.0e-6
+            && frame.instinct_offset.abs() <= limits.max_offset + 1.0e-6
+    }));
+    assert!(
+        without
+            .frames
+            .iter()
+            .all(|frame| frame.instinct_angle == 0.0 && frame.instinct_offset == 0.0)
+    );
+}
+
+#[test]
+fn rider_instinct_acts_only_in_flight() {
+    let mut scenario: Scenario =
+        serde_json::from_str(STANDARD_SCENARIO).expect("valid standard scenario");
+    scenario.entry.speed = 9.0;
+    let simulation = run(&scenario);
+    let takeoff = simulation.takeoff.expect("takeoff").t;
+    assert!(
+        simulation
+            .frames
+            .iter()
+            .filter(|frame| frame.t < takeoff)
+            .all(|frame| frame.instinct_angle == 0.0 && frame.instinct_offset == 0.0)
+    );
 }

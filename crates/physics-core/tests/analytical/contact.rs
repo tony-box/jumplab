@@ -1,8 +1,6 @@
-use physics_core::bike::combine_bike_and_rider_mass_properties;
-use physics_core::geometry::inspect_bike_geometry;
-use physics_core::pose::sample_pose;
-use physics_core::scenario::{JumpKind, Scenario};
-use physics_core::solver::{CONTACT_IMPULSE_EPSILON, Frame, solve_scenario};
+use physics_core::scenario::{JumpKind, Scenario, kicker_transition_length};
+use physics_core::simulation::SimFrame;
+use physics_core::solver::{CONTACT_IMPULSE_EPSILON, SolveOutput, solve_scenario};
 
 const STANDARD_SCENARIO: &str =
     include_str!("../../../../tests/fixtures/scenarios/standard-v1.json");
@@ -12,40 +10,35 @@ fn standard_scenario() -> Scenario {
     serde_json::from_str(STANDARD_SCENARIO).expect("valid standard scenario")
 }
 
+/// A long, slow approach: the run ends at the time limit before reaching the jump.
 fn flat_scenario() -> Scenario {
     let mut scenario = standard_scenario();
-    scenario.jump.kind = JumpKind::Table;
-    scenario.jump.lip_height = 0.0;
-    scenario.jump.lip_angle = 0.05;
-    scenario.jump.gap = 0.0;
-    scenario.jump.step_delta = 0.0;
-    scenario.jump.landing_angle = 0.0;
-    scenario.jump.landing_length = 30.0;
-    scenario.jump.rollout = 30.0;
-    scenario.entry.start_x = -10.0;
+    scenario.entry.start_x = -60.0;
     scenario.entry.speed = 1.0;
     scenario
 }
 
-fn mechanical_energy(frame: &Frame, mass: f32) -> f32 {
-    0.5 * mass * (frame.vx * frame.vx + frame.vy * frame.vy) + mass * GRAVITY * frame.y
+fn system_com_y(output: &SolveOutput, frame: &SimFrame) -> f32 {
+    let inertia = &output.simulation.inertia;
+    (inertia.bike_mass * frame.bike.com.y + inertia.rider_mass * frame.rider.com.y)
+        / (inertia.bike_mass + inertia.rider_mass)
+}
+
+fn system_velocity_y(output: &SolveOutput, frame: &SimFrame) -> f32 {
+    let inertia = &output.simulation.inertia;
+    frame.linear_momentum.y / (inertia.bike_mass + inertia.rider_mass)
 }
 
 #[test]
 fn resting_equilibrium_balances_weight_and_preserves_height() {
     let scenario = flat_scenario();
     let output = solve_scenario(&scenario, "equilibrium").expect("flat solve");
-    let settled = &output.frames[20..];
+    let settled = &output.frames()[60..];
     assert!(settled.iter().all(|frame| !frame.airborne));
 
-    let min_y = settled
-        .iter()
-        .map(|frame| frame.y)
-        .fold(f32::INFINITY, f32::min);
-    let max_y = settled
-        .iter()
-        .map(|frame| frame.y)
-        .fold(f32::NEG_INFINITY, f32::max);
+    let heights: Vec<f32> = settled.iter().map(|frame| frame.bike_origin.y).collect();
+    let min_y = heights.iter().copied().fold(f32::INFINITY, f32::min);
+    let max_y = heights.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     assert!(max_y - min_y < 0.001);
 
     let average_normal_force = settled
@@ -54,7 +47,6 @@ fn resting_equilibrium_balances_weight_and_preserves_height() {
         .sum::<f32>()
         / settled.len() as f32;
     let weight = (scenario.rider.mass + scenario.bike.mass) * GRAVITY;
-    assert!(CONTACT_IMPULSE_EPSILON > 0.0);
     assert!(
         settled
             .iter()
@@ -64,46 +56,55 @@ fn resting_equilibrium_balances_weight_and_preserves_height() {
 }
 
 #[test]
-fn measured_separation_follows_closed_form_ballistics() {
+fn measured_flight_follows_closed_form_ballistics() {
     let mut scenario = standard_scenario();
+    scenario.entry.speed = 11.0;
     let fixed_targets = scenario.pose_clip.keys[0].targets.clone();
     for key in &mut scenario.pose_clip.keys {
         key.targets = fixed_targets.clone();
     }
     let output = solve_scenario(&scenario, "ballistic").expect("standard solve");
-    let start_index = output
-        .frames
+    let frames = output.frames();
+    let start_index = frames
         .windows(25)
         .position(|window| window.iter().all(|frame| frame.airborne))
         .expect("sustained airborne interval");
     let end_index = start_index + 24;
-    let start = &output.frames[start_index];
-    let end = &output.frames[end_index];
-    assert!(
-        output.frames[start_index..=end_index]
-            .iter()
-            .all(|frame| frame.airborne)
-    );
+    let (start, end) = (&frames[start_index], &frames[end_index]);
 
     let elapsed = end.t - start.t;
-    let pose = sample_pose(
-        &scenario.pose_clip,
-        start.x,
-        &scenario.rider,
-        &scenario.bike,
+    let expected_y = system_com_y(&output, start) + system_velocity_y(&output, start) * elapsed
+        - 0.5 * GRAVITY * elapsed * elapsed;
+    assert!((system_com_y(&output, end) - expected_y).abs() < 0.01);
+    let expected_vx = start.linear_momentum.x;
+    assert!((end.linear_momentum.x - expected_vx).abs() / expected_vx.abs() < 1.0e-3);
+}
+
+#[test]
+fn launch_follows_the_lip_tangent_and_loses_speed_climbing() {
+    let mut scenario = standard_scenario();
+    scenario.entry.speed = 11.0;
+    let output = solve_scenario(&scenario, "launch").expect("standard solve");
+    let takeoff = output.simulation.takeoff.expect("takeoff");
+    let velocity = takeoff.system_velocity;
+    let speed = (velocity.x * velocity.x + velocity.y * velocity.y).sqrt();
+    let direction = velocity.y.atan2(velocity.x);
+
+    // The rider's legs absorb part of the lip's turn, so a neutral rider leaves flatter than the
+    // lip but never steeper.
+    let lip = scenario.jump.lip_angle;
+    assert!(
+        direction > 0.4 * lip && direction < lip + 0.05,
+        "launched at {direction} rad from a {lip} rad lip"
     );
-    let local_com = combine_bike_and_rider_mass_properties(
-        inspect_bike_geometry(&scenario.bike).mass_properties,
-        &scenario.rider,
-        &pose.landmarks,
-    )
-    .center_of_gravity;
-    let world_com_y =
-        |frame: &Frame| frame.y + frame.pitch.sin() * local_com.x + frame.pitch.cos() * local_com.y;
-    let start_com_y = world_com_y(start);
-    let end_com_y = world_com_y(end);
-    let expected_y = start_com_y + start.vy * elapsed - 0.5 * GRAVITY * elapsed * elapsed;
-    assert!((end_com_y - expected_y).abs() < 0.01);
+    // Climbing the lip converts kinetic energy into height: never faster than entry.
+    let entry = scenario.entry.speed;
+    assert!(speed < entry, "launched at {speed} m/s from {entry} m/s");
+    let conserved = (entry * entry - 2.0 * GRAVITY * scenario.jump.lip_height).sqrt();
+    assert!(
+        (speed - conserved).abs() / conserved < 0.1,
+        "launched at {speed} m/s; energy conservation predicts about {conserved} m/s"
+    );
 }
 
 #[test]
@@ -111,28 +112,31 @@ fn both_wheel_colliders_retain_landing_contact_with_distributed_mass() {
     let mut scenario = standard_scenario();
     scenario.jump.kind = JumpKind::Gap;
     scenario.jump.lip_height = 0.4;
-    scenario.jump.lip_angle = 0.2;
-    scenario.jump.transition_length = 0.4;
-    scenario.jump.lip_angle = libm::atanf(1.5 * scenario.jump.lip_height / 0.4) + 0.01;
+    scenario.jump.lip_angle = 0.5;
+    scenario.jump.transition_length = kicker_transition_length(0.4, 0.5);
     scenario.jump.gap = 0.5;
     scenario.jump.step_delta = 0.0;
     scenario.jump.landing_angle = 0.12;
     scenario.jump.landing_length = 12.0;
     scenario.jump.rollout = 12.0;
     scenario.entry.start_x = -4.0;
-    scenario.entry.speed = 4.0;
+    scenario.entry.speed = 5.0;
     let output = solve_scenario(&scenario, "slope-pitch").expect("slope solve");
     let landing_start = scenario.jump.transition_length + scenario.jump.gap;
     let slope_frames: Vec<_> = output
-        .frames
+        .frames()
         .iter()
-        .filter(|frame| !frame.airborne && frame.x > landing_start + 1.0)
+        .filter(|frame| !frame.airborne && frame.bike_origin.x > landing_start + 1.0)
         .collect();
     assert!(
         !slope_frames.is_empty(),
         "scenario must reach supported landing slope"
     );
-    assert!(slope_frames.iter().all(|frame| frame.pitch.is_finite()));
+    assert!(
+        slope_frames
+            .iter()
+            .all(|frame| frame.bike.angle.is_finite())
+    );
     assert!(
         slope_frames
             .iter()
@@ -149,17 +153,19 @@ fn both_wheel_colliders_retain_landing_contact_with_distributed_mass() {
 
 #[test]
 fn airborne_rotation_is_deterministic() {
-    let scenario = standard_scenario();
+    let mut scenario = standard_scenario();
+    scenario.entry.speed = 11.0;
     let first = solve_scenario(&scenario, "rotation-a").expect("first solve");
     let second = solve_scenario(&scenario, "rotation-b").expect("second solve");
+    assert_eq!(first.result_hash, second.result_hash);
     let airborne_pitch: Vec<_> = first
-        .frames
+        .frames()
         .iter()
-        .zip(&second.frames)
+        .zip(second.frames())
         .filter(|(left, _)| left.airborne)
         .map(|(left, right)| {
-            assert_eq!(left.pitch, right.pitch);
-            left.pitch
+            assert_eq!(left.bike.angle, right.bike.angle);
+            left.bike.angle
         })
         .collect();
     assert!(airborne_pitch.len() > 2);
@@ -167,24 +173,17 @@ fn airborne_rotation_is_deterministic() {
 }
 
 #[test]
-fn energy_residual_accounts_for_speed_constraint_and_contact_work() {
+fn flat_ground_conserves_energy_without_rider_work() {
     let scenario = flat_scenario();
     let output = solve_scenario(&scenario, "energy").expect("flat solve");
-    let frames = &output.frames[20..];
-    let mass = scenario.rider.mass + scenario.bike.mass;
-    let energy_change =
-        mechanical_energy(frames.last().unwrap(), mass) - mechanical_energy(&frames[0], mass);
-    let mut speed_constraint_work = 0.0;
-    let mut contact_work = 0.0;
-    for pair in frames.windows(2) {
-        speed_constraint_work += 0.5 * mass * (scenario.entry.speed.powi(2) - pair[0].vx.powi(2));
-        let average_normal_force = 0.5
-            * (pair[0].normal_force_rear
-                + pair[0].normal_force_front
-                + pair[1].normal_force_rear
-                + pair[1].normal_force_front);
-        contact_work += average_normal_force * (pair[1].y - pair[0].y);
-    }
-    let residual = energy_change - speed_constraint_work - contact_work;
-    assert!(residual.abs() < 1.0, "energy residual {residual} J");
+    let frames = &output.frames()[60..];
+    let residual = |frame: &SimFrame| frame.energy - frame.actuator_work;
+    let drift = residual(frames.last().unwrap()) - residual(&frames[0]);
+    // Ten seconds of resting contact: allow 0.5% of the system's mechanical energy.
+    assert!(drift.abs() < 5.0, "energy residual drifted {drift} J");
+    let speed_drift = frames.last().unwrap().linear_momentum.x - frames[0].linear_momentum.x;
+    assert!(
+        speed_drift.abs() < 0.5,
+        "momentum drifted {speed_drift} kg m/s on flat ground"
+    );
 }

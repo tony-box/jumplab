@@ -13,7 +13,8 @@ fn standard_scenario() -> Scenario {
 fn every_editable_dimension_changes_canonical_geometry_deterministically() {
     let scenario = standard_scenario();
     let baseline = inspect_bike_geometry(&scenario.bike);
-    let edits: [(&str, fn(&mut Scenario)); 16] = [
+    type Edit = (&'static str, fn(&mut Scenario));
+    let edits: [Edit; 16] = [
         ("wheelSize", |value| value.bike.wheel_size = 27.5),
         ("wheelbase", |value| value.bike.wheelbase += 0.01),
         ("chainstay", |value| value.bike.chainstay += 0.01),

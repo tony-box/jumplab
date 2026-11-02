@@ -6,7 +6,7 @@ use crate::scenario::{BikeSpec, RiderSpec};
 
 pub use crate::scenario::BikeFlavor;
 
-pub const BIKE_MASS_DISTRIBUTION_VERSION: u32 = 1;
+pub const BIKE_MASS_DISTRIBUTION_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

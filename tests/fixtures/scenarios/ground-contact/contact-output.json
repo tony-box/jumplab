@@ -1,14 +1,5 @@
 {
   "id": "ground-contact-contact-output",
   "name": "Measured contact replaces proxy heuristic",
-  "jump": {
-    "kind": "table",
-    "lipHeight": 0,
-    "lipAngle": 0.05,
-    "gap": 0,
-    "landingAngle": 0,
-    "landingLength": 20,
-    "rollout": 20
-  },
-  "entry": { "speed": 2 }
+  "entry": { "speed": 2, "startX": -30 }
 }

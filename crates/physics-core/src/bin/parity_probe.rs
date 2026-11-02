@@ -31,9 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "solverVersion": solve.solver_version,
                 "outputHz": solve.output_hz,
                 "strideFloat32": solve.stride_float32,
-                "frameCount": solve.frames.len(),
+                "frameCount": solve.frame_count,
                 "phases": solve.phases,
                 "metrics": solve.metrics,
+                "landing": solve.landing,
                 "telemetrySampleCount": solve.telemetry_buffer.len(),
                 "resultHash": solve.result_hash
             },

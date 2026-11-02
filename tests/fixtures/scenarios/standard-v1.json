@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "2fbb1b9d-c304-48ef-b42d-f7c3418a8f30",
   "name": "Standard Jump",
   "jump": {
     "kind": "table",
     "lipHeight": 1.2,
     "lipAngle": 0.82,
-    "transitionLength": 1.7,
+    "transitionLength": 2.760961448004383,
     "gap": 6,
     "stepDelta": 0,
     "landingAngle": 0.35,
@@ -19,14 +19,35 @@
     "legRatio": 0.48,
     "armRatio": 0.38,
     "strengthScale": 1,
-    "kp": 1500,
-    "kd": 120,
+    "coupling": {
+      "linearFrequency": 30,
+      "pitchFrequency": 25,
+      "dampingRatio": 1,
+      "foreAftStrength": 1.5,
+      "verticalStrength": 3,
+      "pitchLever": 0.4
+    },
     "joints": {
-      "knee": { "min": -0.1, "max": 1.7, "tauMax": 700 },
-      "hip": { "min": -1.4, "max": 1.1, "tauMax": 800 },
-      "spine": { "min": -0.6, "max": 1.6, "tauMax": 500 },
-      "shoulder": { "min": -2.8, "max": 1.4, "tauMax": 350 },
-      "elbow": { "min": -0.1, "max": 2.6, "tauMax": 300 }
+      "knee": {
+        "min": -0.1,
+        "max": 1.7
+      },
+      "hip": {
+        "min": -1.4,
+        "max": 1.1
+      },
+      "spine": {
+        "min": -0.6,
+        "max": 1.6
+      },
+      "shoulder": {
+        "min": -2.8,
+        "max": 1.4
+      },
+      "elbow": {
+        "min": -0.1,
+        "max": 2.6
+      }
     }
   },
   "bike": {
@@ -72,17 +93,29 @@
       {
         "s": -6,
         "label": "Approach",
-        "targets": { "knee": 0.3, "hip": -0.5, "spine": 0.75 }
+        "targets": {
+          "knee": 0.3,
+          "hip": -0.5,
+          "spine": 0.75
+        }
       },
       {
         "s": 0,
         "label": "Lip",
-        "targets": { "knee": 0.35, "hip": -0.6, "spine": 0.85 }
+        "targets": {
+          "knee": 0.35,
+          "hip": -0.6,
+          "spine": 0.85
+        }
       },
       {
         "s": 4,
         "label": "Flight",
-        "targets": { "knee": 0.2, "hip": -0.4, "spine": 0.6 }
+        "targets": {
+          "knee": 0.2,
+          "hip": -0.4,
+          "spine": 0.6
+        }
       }
     ]
   },
@@ -90,8 +123,12 @@
     "dt": 0.0010416666666666667,
     "substeps": 4,
     "ccd": true,
-    "seed": 0,
     "outputHz": 240,
-    "solverVersion": "rapier-0.35.2-two-wheel-contact-v5-geometry-v1-mass-distribution-v1"
+    "solverVersion": "rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2",
+    "riderInstinct": {
+      "enabled": true,
+      "maxOffset": 0.1,
+      "maxAngle": 0.17
+    }
   }
 }

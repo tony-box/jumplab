@@ -1,8 +1,8 @@
 pub mod analysis;
 pub mod bike;
 pub mod geometry;
+pub mod outcome;
 pub mod pose;
-pub mod rider;
 pub mod rider_dynamics;
 pub mod scenario;
 pub mod simulation;
@@ -75,34 +75,73 @@ pub fn resolve_pose_edit_wasm(
     .map_err(|err| JsValue::from_str(&err))
 }
 
-#[wasm_bindgen(js_name = solveScenarioJson)]
-pub fn solve_scenario_json(scenario_json: &str, run_id: &str) -> Result<String, JsValue> {
-    let scenario: Scenario = serde_json::from_str(scenario_json)
-        .map_err(|err| JsValue::from_str(&format!("invalid scenario json: {err}")))?;
-    let output = solver::solve_scenario(&scenario, run_id)
-        .map_err(|err| JsValue::from_str(&format!("solve failed: {err}")))?;
-    serde_json::to_string(&output)
-        .map_err(|err| JsValue::from_str(&format!("serialize failed: {err}")))
+/// One solve: the JSON manifest plus the frame and telemetry rows as `Float32Array`s.
+#[wasm_bindgen]
+pub struct SolveResult {
+    manifest: String,
+    frames: Vec<f32>,
+    telemetry: Vec<f32>,
 }
 
-#[wasm_bindgen(js_name = solveFrameBuffer)]
-pub fn solve_frame_buffer(scenario_json: &str, run_id: &str) -> Result<Vec<f32>, JsValue> {
-    let scenario: Scenario = serde_json::from_str(scenario_json)
-        .map_err(|err| JsValue::from_str(&format!("invalid scenario json: {err}")))?;
-    let output = solver::solve_scenario(&scenario, run_id)
-        .map_err(|err| JsValue::from_str(&format!("solve failed: {err}")))?;
-    Ok(output.frame_buffer)
+#[wasm_bindgen]
+impl SolveResult {
+    #[wasm_bindgen(getter)]
+    pub fn manifest(&self) -> String {
+        self.manifest.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn frames(&self) -> Vec<f32> {
+        self.frames.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn telemetry(&self) -> Vec<f32> {
+        self.telemetry.clone()
+    }
 }
 
-#[wasm_bindgen(js_name = solveTelemetryBuffer)]
-pub fn solve_telemetry_buffer(scenario_json: &str, run_id: &str) -> Result<Vec<f32>, JsValue> {
+pub fn solve_json(scenario_json: &str, run_id: &str) -> Result<(String, Vec<f32>, Vec<f32>), String> {
     let scenario: Scenario = serde_json::from_str(scenario_json)
-        .map_err(|err| JsValue::from_str(&format!("invalid scenario json: {err}")))?;
-    let output = solver::solve_scenario(&scenario, run_id)
-        .map_err(|err| JsValue::from_str(&format!("solve failed: {err}")))?;
-    Ok(output.telemetry_buffer)
+        .map_err(|err| format!("invalid scenario json: {err}"))?;
+    let output = solver::solve_scenario(&scenario, run_id)?;
+    let manifest =
+        serde_json::to_string(&output).map_err(|err| format!("serialize failed: {err}"))?;
+    Ok((manifest, output.frame_buffer, output.telemetry_buffer))
 }
 
+#[wasm_bindgen(js_name = solve)]
+pub fn solve_wasm(scenario_json: &str, run_id: &str) -> Result<SolveResult, JsValue> {
+    let (manifest, frames, telemetry) =
+        solve_json(scenario_json, run_id).map_err(|err| JsValue::from_str(&err))?;
+    Ok(SolveResult {
+        manifest,
+        frames,
+        telemetry,
+    })
+}
+
+/// Versions and binary layouts owned by this core; the app checks them at startup.
+pub fn versions() -> serde_json::Value {
+    serde_json::json!({
+        "schemaVersion": version::SCHEMA_VERSION,
+        "protocolVersion": version::PROTOCOL_VERSION,
+        "frameLayoutVersion": version::FRAME_LAYOUT_VERSION,
+        "telemetryLayoutVersion": telemetry::TELEMETRY_LAYOUT_VERSION,
+        "modelVersion": MODEL_VERSION,
+        "solverVersion": SOLVER_VERSION,
+        "frameFields": solver::FRAME_LAYOUT_FIELDS.to_vec(),
+        "telemetryChannels": telemetry::TELEMETRY_CHANNELS
+            .iter()
+            .map(|(name, unit)| serde_json::json!({ "name": name, "unit": unit }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+#[wasm_bindgen(js_name = versionsJson)]
+pub fn versions_json() -> String {
+    versions().to_string()
+}
 #[wasm_bindgen(js_name = terrainProfileJson)]
 pub fn terrain_profile_json(scenario_json: &str, step: f32) -> Result<String, JsValue> {
     let scenario: Scenario = serde_json::from_str(scenario_json)
@@ -128,6 +167,11 @@ pub fn sample_pose_json(
         .map_err(|err| JsValue::from_str(&format!("invalid rider json: {err}")))?;
     let bike: BikeSpec = serde_json::from_str(bike_json)
         .map_err(|err| JsValue::from_str(&format!("invalid bike json: {err}")))?;
+    if clip.keys.len() < 2 || !s.is_finite() {
+        return Err(JsValue::from_str(
+            "poseClip needs at least two keys and s must be finite",
+        ));
+    }
 
     let sample = pose::sample_pose(&clip, s, &rider, &bike);
     let landmarks = &sample.landmarks;
@@ -189,7 +233,7 @@ mod tests {
     fn reports_expected_feature_pin() {
         assert_eq!(
             rapier_ready(),
-            "rapier-0.35.2-two-wheel-contact-v5-geometry-v1-mass-distribution-v1"
+            "rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2"
         );
     }
 

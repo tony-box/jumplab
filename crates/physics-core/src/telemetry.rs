@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
@@ -8,8 +6,9 @@ pub struct Capabilities {
     pub supported_outputs: Vec<String>,
     pub ccd: bool,
     pub contact_impulse: bool,
-    pub motor_work: bool,
-    pub joint_torque: bool,
+    pub rider_coupling: bool,
+    pub rider_instinct: bool,
+    pub suspension: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -19,6 +18,16 @@ pub struct MetricValue {
     pub source: String,
     pub reason: Option<String>,
 }
+
+/// Interleaved telemetry channels, one sample per output frame.
+pub const TELEMETRY_LAYOUT_VERSION: u32 = 2;
+pub const TELEMETRY_CHANNELS: [(&str, &str); 4] = [
+    ("contactImpulse", "N*s"),
+    ("actuatorWork", "J"),
+    ("speed", "m/s"),
+    ("comHeight", "m"),
+];
+pub const TELEMETRY_STRIDE_FLOAT32: usize = TELEMETRY_CHANNELS.len();
 
 pub fn capabilities() -> Capabilities {
     Capabilities {
@@ -37,10 +46,13 @@ pub fn capabilities() -> Capabilities {
             "scenario.entry.startX",
             "scenario.rider.height",
             "scenario.rider.mass",
+            "scenario.rider.strengthScale",
+            "scenario.rider.coupling",
             "scenario.bike.wheelbase",
             "scenario.bike.mass",
-            "scenario.bike.fork.travel",
-            "scenario.bike.fork.sag",
+            "scenario.bike.geometry",
+            "scenario.poseClip",
+            "scenario.solver.riderInstinct",
         ]
         .into_iter()
         .map(String::from)
@@ -50,16 +62,18 @@ pub fn capabilities() -> Capabilities {
             "velocity",
             "pitch",
             "contactImpulse",
-            "motorWork",
-            "jointTorque",
+            "actuatorWork",
+            "riderState",
+            "landingOutcome",
         ]
         .into_iter()
         .map(String::from)
         .collect(),
         ccd: true,
         contact_impulse: true,
-        motor_work: true,
-        joint_torque: true,
+        rider_coupling: true,
+        rider_instinct: true,
+        suspension: false,
     }
 }
 
@@ -72,36 +86,11 @@ pub fn measured_metric(value: f32, unit: &str) -> MetricValue {
     }
 }
 
-pub fn pending_metric(unit: &str, reason: &str) -> MetricValue {
+pub fn unavailable_metric(unit: &str, reason: &str) -> MetricValue {
     MetricValue {
         value: None,
         unit: unit.to_string(),
-        source: "pending-core".to_string(),
+        source: "unavailable".to_string(),
         reason: Some(reason.to_string()),
     }
-}
-
-pub fn build_metrics(
-    max_height: f32,
-    takeoff_speed: f32,
-    energy_residual: f32,
-    contact_impulse: f32,
-    motor_work: f32,
-) -> BTreeMap<String, MetricValue> {
-    let mut map = BTreeMap::new();
-    map.insert("maxHeight".to_string(), measured_metric(max_height, "m"));
-    map.insert(
-        "takeoffSpeed".to_string(),
-        measured_metric(takeoff_speed, "m/s"),
-    );
-    map.insert(
-        "energyResidual".to_string(),
-        measured_metric(energy_residual, "J"),
-    );
-    map.insert(
-        "contactImpulse".to_string(),
-        measured_metric(contact_impulse, "N*s"),
-    );
-    map.insert("motorWork".to_string(), measured_metric(motor_work, "J"));
-    map
 }

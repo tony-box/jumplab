@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { runResultSchema } from "./run-result";
 import { scenarioSchema } from "./scenario";
+import { PROTOCOL_VERSION } from "./versions";
 
 const hashPattern = /^[a-f0-9]{64}$/;
 const finiteNumber = z.number().refine(Number.isFinite, "Expected a finite number");
@@ -10,7 +11,7 @@ export const providerSourceSchema = z.enum(["solver", "representative-fixture"])
 
 export const solverCapabilityManifestSchema = z
   .object({
-    protocolVersion: z.literal(3),
+    protocolVersion: z.literal(PROTOCOL_VERSION),
     solverVersion: z.string().min(1),
     modelVersion: z.string().min(1),
     deterministic: z.literal(true),

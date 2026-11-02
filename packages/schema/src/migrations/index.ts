@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { SCENARIO_SCHEMA_VERSION, SOLVER_VERSION } from "../versions";
+
 const migrationEnvelopeSchema = z
   .object({
     format: z.literal("bike-jumper-scenario"),
@@ -96,27 +98,128 @@ const migrateScenarioValueV2 = (input: unknown): unknown => {
   };
 };
 
+/** Rider coupling defaults introduced with the two-body model (scenario schema 4). */
+export const DEFAULT_RIDER_COUPLING = Object.freeze({
+  linearFrequency: 30,
+  pitchFrequency: 25,
+  dampingRatio: 1,
+  foreAftStrength: 1.5,
+  verticalStrength: 3,
+  pitchLever: 0.4
+});
+
+export const DEFAULT_RIDER_INSTINCT = Object.freeze({
+  enabled: true,
+  maxOffset: 0.1,
+  maxAngle: 0.17
+});
+
+/** Kicker transitions are circular arcs: a run of h·cot(θ/2) for height h and lip angle θ. */
+export const kickerTransitionLength = (lipHeight: number, lipAngle: number): number =>
+  lipHeight / Math.tan(0.5 * lipAngle);
+
+export const KICKER_TRANSITION_MIN = 0.5;
+export const KICKER_TRANSITION_MAX = 30;
+const MIN_PHYSICS_HZ = 240;
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+/**
+ * Schema 3 -> 4: kickers become circular arcs whose length follows from height and lip angle,
+ * the rider gains coupling settings, unused actuator gains and the solver seed are dropped,
+ * and the physics rate is raised to the 240 Hz minimum.
+ */
+const migrateScenarioValueV3 = (input: unknown): unknown => {
+  const scenario = asRecord(input);
+  const jump = asRecord(scenario?.jump);
+  const rider = asRecord(scenario?.rider);
+  const solver = asRecord(scenario?.solver);
+  if (!scenario || !jump || !rider || !solver) {
+    throw new Error("Cannot migrate scenario schema 3: jump, rider, and solver are required");
+  }
+
+  let migratedJump = jump;
+  const { kind, lipHeight, lipAngle } = jump;
+  if (kind !== "drop" && typeof lipHeight === "number" && typeof lipAngle === "number") {
+    const length = Math.min(
+      Math.max(kickerTransitionLength(lipHeight, lipAngle), KICKER_TRANSITION_MIN),
+      KICKER_TRANSITION_MAX
+    );
+    migratedJump = {
+      ...jump,
+      lipAngle: 2 * Math.atan(lipHeight / length),
+      transitionLength: length
+    };
+  }
+
+  const { kp: _kp, kd: _kd, joints, ...riderRest } = rider;
+  const jointRecord = asRecord(joints) ?? {};
+  const migratedJoints = Object.fromEntries(
+    Object.entries(jointRecord).map(([name, limit]) => {
+      const { tauMax: _tauMax, ...range } = asRecord(limit) ?? {};
+      return [name, range];
+    })
+  );
+
+  const { seed: _seed, ...solverRest } = solver;
+  const dt = typeof solver.dt === "number" ? solver.dt : 1 / 240;
+  const substeps = typeof solver.substeps === "number" ? solver.substeps : 1;
+  const minimumSubsteps = Math.ceil(MIN_PHYSICS_HZ * dt - 1e-9);
+
+  return {
+    ...scenario,
+    schemaVersion: 4,
+    jump: migratedJump,
+    rider: { ...riderRest, coupling: { ...DEFAULT_RIDER_COUPLING }, joints: migratedJoints },
+    solver: {
+      ...solverRest,
+      substeps: Math.max(substeps, minimumSubsteps),
+      solverVersion: SOLVER_VERSION,
+      riderInstinct: { ...DEFAULT_RIDER_INSTINCT }
+    }
+  };
+};
+
+const scenarioMigrations: Record<number, (input: unknown) => unknown> = {
+  1: migrateScenarioValueV1,
+  2: migrateScenarioValueV2,
+  3: migrateScenarioValueV3
+};
+
+const schemaVersionOf = (value: unknown): unknown => asRecord(value)?.schemaVersion;
+
 export const migrateScenarioValue = (input: unknown): unknown => {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
-  const version = (input as Record<string, unknown>).schemaVersion;
-  if (version === 1) return migrateScenarioValue(migrateScenarioValueV1(input));
-  if (version === 2) return migrateScenarioValueV2(input);
-  if (version === 3) return input;
-  throw new Error(`Unsupported scenario schemaVersion: ${String(version)}`);
+  if (!asRecord(input)) return input;
+  let current = input;
+  let version = schemaVersionOf(current);
+  while (version !== SCENARIO_SCHEMA_VERSION) {
+    const migrate = typeof version === "number" ? scenarioMigrations[version] : undefined;
+    if (!migrate) {
+      throw new Error(`Unsupported scenario schemaVersion: ${String(version)}`);
+    }
+    const next = migrate(current);
+    const nextVersion = schemaVersionOf(next);
+    if (typeof nextVersion !== "number" || nextVersion <= (version as number)) {
+      throw new Error(`Cannot migrate scenario schemaVersion ${String(version)}`);
+    }
+    current = next;
+    version = nextVersion;
+  }
+  return current;
 };
 
 export const migrateScenarioFile = (input: unknown): unknown => {
   const envelope = migrationEnvelopeSchema.parse(input);
-
-  if (envelope.schemaVersion === 1 || envelope.schemaVersion === 2) {
-    return {
-      ...envelope,
-      schemaVersion: 3,
-      scenario: migrateScenarioValue(envelope.scenario)
-    };
+  if (envelope.schemaVersion === SCENARIO_SCHEMA_VERSION) return envelope;
+  if (envelope.schemaVersion > SCENARIO_SCHEMA_VERSION) {
+    throw new Error(`Unsupported scenario file schemaVersion: ${envelope.schemaVersion}`);
   }
-
-  if (envelope.schemaVersion === 3) return envelope;
-
-  throw new Error(`Unsupported scenario file schemaVersion: ${envelope.schemaVersion}`);
+  return {
+    ...envelope,
+    schemaVersion: SCENARIO_SCHEMA_VERSION,
+    scenario: migrateScenarioValue(envelope.scenario)
+  };
 };

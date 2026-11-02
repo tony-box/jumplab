@@ -9,6 +9,7 @@ export * from "./migrations/index";
 export * from "./migrations/compatibility";
 export * from "./run-result";
 export * from "./scenario";
+export * from "./versions";
 export * from "./worker-protocol";
 
 export const schemaPackageInfo = z

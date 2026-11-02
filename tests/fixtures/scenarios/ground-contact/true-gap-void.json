@@ -1,5 +1,5 @@
 {
   "id": "ground-contact-true-gap-void",
   "name": "True gap void",
-  "jump": { "kind": "gap", "gap": 5, "stepDelta": -0.4 }
+  "jump": { "kind": "stepdown", "gap": 5, "stepDelta": -0.4 }
 }

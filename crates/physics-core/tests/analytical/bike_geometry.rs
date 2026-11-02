@@ -249,7 +249,6 @@ fn requires_strict_geometry_input_and_rejects_semantically_invalid_scenarios() {
         "../../../../tests/fixtures/scenarios/standard-v1.json"
     ))
     .unwrap();
-    scenario_value["schemaVersion"] = json!(3);
     scenario_value["bike"] = serde_json::to_value(&bike).unwrap();
     let mut scenario: Scenario = serde_json::from_value(scenario_value).unwrap();
     scenario.bike.geometry.reach = 0.2;
@@ -268,7 +267,7 @@ fn serializes_deterministic_camel_case_inspection_output() {
     assert_eq!(output["valid"], true);
     assert!(output.get("closureResidual").is_some());
     assert_eq!(output["massProperties"]["totalMass"], 14.0);
-    assert_eq!(output["massProperties"]["distributionVersion"], 1);
+    assert_eq!(output["massProperties"]["distributionVersion"], 2);
     let ring = output["protectedShapes"]
         .as_array()
         .unwrap()

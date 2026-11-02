@@ -342,7 +342,7 @@ pub fn sample_pose_with_contacts(
     };
 
     let (targets, targets_constrained) = clamp_targets(raw_targets, rider);
-    let skeleton = build_skeleton(&targets, rider, &contacts);
+    let skeleton = build_skeleton(&targets, rider, contacts);
     let constrained = targets_constrained || skeleton.arm_constrained;
 
     PoseSampleOutput {

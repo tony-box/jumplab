@@ -1,5 +1,11 @@
 {
   "id": "ground-contact-curved-lip",
   "name": "Curved lip climb",
-  "jump": { "kind": "table", "lipHeight": 1.6, "lipAngle": 0.93, "transitionLength": 1.8, "gap": 2 }
+  "jump": {
+    "kind": "table",
+    "lipHeight": 1.6,
+    "lipAngle": 0.93,
+    "transitionLength": 3.18921005,
+    "gap": 2
+  }
 }
