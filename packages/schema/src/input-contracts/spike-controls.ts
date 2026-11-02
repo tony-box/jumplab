@@ -30,11 +30,12 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     label: "Transition length",
     unit: "m",
     minimum: 0.5,
-    maximum: 8,
+    maximum: 30,
     step: 0.05,
     group: "jump",
     physicalQuantity: "length",
-    explanation: "Horizontal distance from the start of the takeoff curve to the lip.",
+    explanation:
+      "Horizontal run from the start of the takeoff to the lip. Kickers are circular arcs, so their length follows from height and lip angle; drops set it directly.",
     scenarioPath: "scenario.jump.transitionLength"
   },
   {
@@ -53,8 +54,8 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     id: "step-delta",
     label: "Step delta",
     unit: "m",
-    minimum: -3,
-    maximum: 3,
+    minimum: -5,
+    maximum: 5,
     step: 0.05,
     group: "landing",
     physicalQuantity: "length",
@@ -77,8 +78,8 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     id: "landing-length",
     label: "Landing length",
     unit: "m",
-    minimum: 2,
-    maximum: 30,
+    minimum: 1,
+    maximum: 40,
     step: 0.1,
     group: "landing",
     physicalQuantity: "length",
@@ -94,7 +95,8 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     step: 0.1,
     group: "entry",
     physicalQuantity: "speed",
-    explanation: "Horizontal rider and bike speed at simulation start.",
+    explanation:
+      "Speed at the start of the approach. After that only gravity, the terrain, and the rider change it.",
     scenarioPath: "scenario.entry.speed"
   },
   {
@@ -113,20 +115,58 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     id: "rider-mass",
     label: "Rider mass",
     unit: "kg",
-    minimum: 30,
-    maximum: 150,
+    minimum: 35,
+    maximum: 160,
     step: 0.5,
     group: "rider",
     physicalQuantity: "mass",
-    explanation: "Total rider mass distributed across articulated segments.",
+    explanation: "Rider mass, carried by the rider body that the pose moves relative to the bike.",
     scenarioPath: "scenario.rider.mass"
+  },
+  {
+    id: "rider-strength",
+    label: "Rider strength",
+    unit: "x",
+    minimum: 0.1,
+    maximum: 3,
+    step: 0.05,
+    group: "rider",
+    physicalQuantity: "dimensionless",
+    explanation:
+      "Scales how hard the rider can push and pull on the bike. Weaker riders track the authored pose less closely under load.",
+    scenarioPath: "scenario.rider.strengthScale"
+  },
+  {
+    id: "instinct-angle",
+    label: "Instinct lean limit",
+    unit: "rad",
+    minimum: 0,
+    maximum: 0.5,
+    step: 0.01,
+    group: "rider",
+    physicalQuantity: "plane angle",
+    explanation:
+      "Largest in-air lean the rider adds on their own to level the bike for landing. Zero turns the correction off.",
+    scenarioPath: "scenario.solver.riderInstinct.maxAngle"
+  },
+  {
+    id: "instinct-offset",
+    label: "Instinct shift limit",
+    unit: "m",
+    minimum: 0,
+    maximum: 0.25,
+    step: 0.01,
+    group: "rider",
+    physicalQuantity: "length",
+    explanation: "Largest fore-aft body shift the rider adds on their own while airborne.",
+    scenarioPath: "scenario.solver.riderInstinct.maxOffset"
   },
   {
     id: "wheelbase",
     label: "Wheelbase",
     unit: "m",
     minimum: 0.8,
-    maximum: 1.6,
+    maximum: 1.5,
     step: 0.01,
     group: "bike",
     physicalQuantity: "length",
@@ -138,7 +178,7 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     label: "Bike mass",
     unit: "kg",
     minimum: 5,
-    maximum: 35,
+    maximum: 30,
     step: 0.1,
     group: "bike",
     physicalQuantity: "mass",
@@ -150,11 +190,11 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     label: "Fork travel",
     unit: "m",
     minimum: 0,
-    maximum: 0.25,
+    maximum: 0.3,
     step: 0.005,
     group: "bike",
     physicalQuantity: "length",
-    explanation: "Maximum modeled front suspension displacement.",
+    explanation: "Front suspension travel. Stored for reference; suspension is not simulated yet.",
     scenarioPath: "scenario.bike.fork.travel"
   },
   {
@@ -166,7 +206,7 @@ export const spikeControlContracts = inputControlContractsSchema.parse([
     step: 0.002,
     group: "bike",
     physicalQuantity: "length",
-    explanation: "Static front suspension compression at equilibrium.",
+    explanation: "Front suspension sag. Stored for reference; suspension is not simulated yet.",
     scenarioPath: "scenario.bike.fork.sag"
   }
 ]);

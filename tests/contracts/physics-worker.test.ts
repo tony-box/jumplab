@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
 
 import {
   PROTOCOL_VERSION,
   bikeGeometryInspectedEventSchema,
-  cancelCommandSchema,
   designValidatedEventSchema,
   inspectBikeGeometryCommandSchema,
   progressEventSchema,
@@ -11,25 +13,51 @@ import {
   poseEditResolvedEventSchema,
   readyEventSchema,
   resultEventSchema,
-  solveCommandSchema,
   validateDesignCommandSchema,
   workerCommandSchema,
-  workerEventSchema
+  workerEventSchema,
+  type WorkerCommand,
+  type WorkerErrorCode,
+  type WorkerEvent
 } from "../../packages/schema/src/worker-protocol";
 import {
   FRAME_LAYOUT_FIELDS,
   FRAME_LAYOUT_VERSION,
-  FRAME_STRIDE_FLOAT32
+  FRAME_STRIDE_FLOAT32,
+  TELEMETRY_CHANNELS,
+  TELEMETRY_LAYOUT_VERSION,
+  runResultSchema
 } from "../../packages/schema/src/run-result";
-import { createPhysicsController } from "../../apps/web/src/solver/controller";
+import {
+  MODEL_VERSION,
+  SCENARIO_SCHEMA_VERSION,
+  SOLVER_VERSION
+} from "../../packages/schema/src/versions";
+import { hashScenario } from "../../packages/schema/src/canonical";
 import { createFixtureWorkerRuntime } from "../../apps/web/src/solver/fixture.worker";
-import { createWorkerRuntime, type WasmExports } from "../../apps/web/src/solver/physics.worker";
+import {
+  checkCoreVersions,
+  coreErrorMessage,
+  createWorkerRuntime,
+  type WasmExports,
+  type WasmSolveResult
+} from "../../apps/web/src/solver/physics.worker";
+import {
+  SolverGatewayError,
+  createSolverGateway,
+  type SolverTransport
+} from "../../apps/web/src/solver/gateway";
 import scenarioJson from "../fixtures/scenarios/standard-v1.json";
 import { scenarioSchema } from "../../packages/schema/src/scenario";
-import runResultJson from "../fixtures/run-results/standard-v1.json";
-import { runResultSchema } from "../../packages/schema/src/run-result";
+import runResultJson from "../fixtures/run-results/standard-v2.json";
 
 const currentScenario = scenarioSchema.parse(scenarioJson);
+const fixtureResult = runResultSchema.parse(runResultJson);
+
+const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
+const OTHER_REQUEST_ID = "22222222-2222-4222-8222-222222222222";
+const RUN_ID = "33333333-3333-4333-8333-333333333333";
+const OTHER_RUN_ID = "44444444-4444-4444-8444-444444444444";
 
 const geometryInspection = {
   modelVersion: 1 as const,
@@ -47,7 +75,7 @@ const geometryInspection = {
     totalMass: currentScenario.bike.mass,
     centerOfGravity: { x: 0.57, y: 0.54 },
     planarInertia: 2.8,
-    distributionVersion: 1 as const
+    distributionVersion: 2 as const
   }
 };
 
@@ -97,10 +125,66 @@ const designValidation = {
   solverVersion: currentScenario.solver.solverVersion
 };
 
+const coreVersions = (overrides: Record<string, unknown> = {}) => ({
+  protocolVersion: PROTOCOL_VERSION,
+  schemaVersion: SCENARIO_SCHEMA_VERSION,
+  frameLayoutVersion: FRAME_LAYOUT_VERSION,
+  telemetryLayoutVersion: TELEMETRY_LAYOUT_VERSION,
+  modelVersion: MODEL_VERSION,
+  solverVersion: SOLVER_VERSION,
+  frameFields: FRAME_LAYOUT_FIELDS.map((field) => field.name),
+  telemetryChannels: TELEMETRY_CHANNELS.map(({ name, unit }) => ({ name, unit })),
+  ...overrides
+});
+
+const coreCapabilities = {
+  deterministic: true,
+  supportedScenarioPaths: ["scenario.entry.speed", "scenario.rider.coupling"],
+  supportedOutputs: ["contactImpulse", "landingOutcome"],
+  ccd: true,
+  contactImpulse: true,
+  riderCoupling: true,
+  riderInstinct: true,
+  suspension: false
+};
+
+/** The camelCase manifest the core's `solve` export returns, mirroring the fixture run. */
+const coreManifest = (overrides: Record<string, unknown> = {}) => ({
+  runId: RUN_ID,
+  scenarioHash: fixtureResult.scenarioHash,
+  solverVersion: fixtureResult.solverVersion,
+  modelVersion: MODEL_VERSION,
+  frameLayoutVersion: FRAME_LAYOUT_VERSION,
+  outputHz: fixtureResult.outputHz,
+  strideFloat32: FRAME_STRIDE_FLOAT32,
+  frameCount: fixtureResult.frameCount,
+  telemetryStrideFloat32: TELEMETRY_CHANNELS.length,
+  phases: fixtureResult.phases,
+  metrics: fixtureResult.metrics,
+  landing: fixtureResult.landing,
+  summary: { landing: "clean" },
+  resultHash: fixtureResult.resultHash,
+  ...overrides
+});
+
+const ramp = (length: number): Float32Array => Float32Array.from({ length }, (_, index) => index);
+
+const solveResult = (
+  options: { manifest?: Record<string, unknown>; frames?: number; telemetry?: number } = {}
+): WasmSolveResult & { free: ReturnType<typeof vi.fn> } => {
+  const manifest = options.manifest ?? coreManifest();
+  const frameCount = manifest.frameCount as number;
+  return {
+    manifest: JSON.stringify(manifest),
+    frames: ramp(options.frames ?? frameCount * FRAME_STRIDE_FLOAT32),
+    telemetry: ramp(options.telemetry ?? frameCount * TELEMETRY_CHANNELS.length),
+    free: vi.fn()
+  };
+};
+
 const wasmExports = (overrides: Partial<WasmExports> = {}): WasmExports => ({
-  solveScenarioJson: () => "{}",
-  solveFrameBuffer: () => new Float32Array(0),
-  solveTelemetryBuffer: () => new Float32Array(0),
+  solve: () => solveResult(),
+  versionsJson: () => JSON.stringify(coreVersions()),
   samplePoseJson: () => JSON.stringify(poseSample),
   analyzeSpeedWindowJson: () => "{}",
   terrainProfileJson: () => "{}",
@@ -114,84 +198,81 @@ const wasmExports = (overrides: Partial<WasmExports> = {}): WasmExports => ({
       limitingConflicts: []
     }),
   validateDesignJson: () => JSON.stringify(designValidation),
-  capabilitiesJson: () => "{}",
+  capabilitiesJson: () => JSON.stringify(coreCapabilities),
   ...overrides
 });
 
-const scenario = {
-  schemaVersion: 2 as const,
-  id: "2fbb1b9d-c304-48ef-b42d-f7c3418a8f30",
-  name: "S",
-  jump: {
-    kind: "table" as const,
-    lipHeight: 1,
-    lipAngle: 0.9,
-    transitionLength: 1.2,
-    gap: 4,
-    stepDelta: 0,
-    landingAngle: 0.3,
-    landingLength: 8,
-    rollout: 12
-  },
-  rider: {
-    height: 1.8,
-    mass: 70,
-    legRatio: 0.48,
-    armRatio: 0.38,
-    strengthScale: 1,
-    kp: 1200,
-    kd: 80,
-    joints: {
-      knee: { min: -1, max: 0.1, tauMax: 100 },
-      hip: { min: -1, max: 1, tauMax: 100 },
-      spine: { min: -0.5, max: 0.5, tauMax: 100 },
-      shoulder: { min: -1, max: 1, tauMax: 100 },
-      elbow: { min: -1, max: 0.1, tauMax: 100 }
-    }
-  },
-  bike: {
-    frameType: "hardtail" as const,
-    wheelSize: 29 as const,
-    wheelbase: 1.2,
-    chainstay: 0.44,
-    bbHeight: 0.33,
-    mass: 14,
-    fork: { travel: 0.14, sag: 0.03, springRate: 20000, damping: 1200 },
-    rearShock: null
-  },
-  entry: { speed: 6, startX: -10 },
-  poseClip: {
-    id: "8f5ae67b-86cd-4111-af3a-7d2a758d6d16",
-    name: "N",
-    interpolation: "linear" as const,
-    keys: [
-      { s: -1, label: "a", targets: { knee: 0.7, hip: 0.3, spine: 0.1 } },
-      { s: 1, label: "b", targets: { knee: 0.9, hip: 0.4, spine: 0.2 } }
-    ]
-  },
-  solver: {
-    dt: 0.004166666666666667,
-    substeps: 2,
-    ccd: true,
-    seed: 0,
-    outputHz: 120,
-    solverVersion: "v1"
+const initCommand: WorkerCommand = {
+  protocolVersion: PROTOCOL_VERSION,
+  type: "init",
+  requestId: REQUEST_ID,
+  appVersion: "0.2.0",
+  expectedSolverVersion: SOLVER_VERSION
+};
+
+const solveCommand = (scenario: unknown = currentScenario): WorkerCommand =>
+  ({
+    protocolVersion: PROTOCOL_VERSION,
+    type: "solve",
+    requestId: REQUEST_ID,
+    runId: RUN_ID,
+    scenario
+  }) as WorkerCommand;
+
+const commandFor = (type: WorkerCommand["type"]): WorkerCommand => {
+  switch (type) {
+    case "solve":
+      return solveCommand();
+    case "inspect-bike-geometry":
+      return {
+        protocolVersion: PROTOCOL_VERSION,
+        type,
+        requestId: REQUEST_ID,
+        bike: currentScenario.bike
+      };
+    case "resolve-pose-edit":
+      return {
+        protocolVersion: PROTOCOL_VERSION,
+        type,
+        requestId: REQUEST_ID,
+        scenario: currentScenario,
+        keyIndex: 0,
+        baselineTargets: currentScenario.poseClip.keys[0].targets,
+        requestedTargets: currentScenario.poseClip.keys[1].targets
+      };
+    case "validate-design":
+      return {
+        protocolVersion: PROTOCOL_VERSION,
+        type,
+        requestId: REQUEST_ID,
+        scenario: currentScenario
+      };
+    default:
+      throw new Error(`no test command for ${type}`);
   }
+};
+
+const throwing = (error: unknown) => () => {
+  throw error;
+};
+
+const singleEvent = (events: WorkerEvent[]): WorkerEvent => {
+  expect(events).toHaveLength(1);
+  return workerEventSchema.parse(events[0]);
 };
 
 describe("physics worker contract", () => {
   it("strictly validates additive Designer commands and responses", () => {
-    const requestId = "11111111-1111-4111-8111-111111111111";
     const inspect = inspectBikeGeometryCommandSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       type: "inspect-bike-geometry",
-      requestId,
+      requestId: REQUEST_ID,
       bike: currentScenario.bike
     });
-    const resolve = resolvePoseEditCommandSchema.parse({
+    const resolvePoseEdit = resolvePoseEditCommandSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       type: "resolve-pose-edit",
-      requestId,
+      requestId: REQUEST_ID,
       scenario: currentScenario,
       keyIndex: 0,
       baselineTargets: currentScenario.poseClip.keys[0].targets,
@@ -200,23 +281,23 @@ describe("physics worker contract", () => {
     const validate = validateDesignCommandSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       type: "validate-design",
-      requestId,
+      requestId: REQUEST_ID,
       scenario: currentScenario
     });
 
     expect(workerCommandSchema.parse(inspect)).toEqual(inspect);
-    expect(workerCommandSchema.parse(resolve)).toEqual(resolve);
+    expect(workerCommandSchema.parse(resolvePoseEdit)).toEqual(resolvePoseEdit);
     expect(workerCommandSchema.parse(validate)).toEqual(validate);
     expect(() =>
       inspectBikeGeometryCommandSchema.parse({ ...inspect, unexpected: true })
     ).toThrow();
-    expect(() => workerCommandSchema.parse({ ...inspect, protocolVersion: 2 })).toThrow();
+    expect(() => workerCommandSchema.parse({ ...inspect, protocolVersion: 3 })).toThrow();
 
     expect(
       bikeGeometryInspectedEventSchema.parse({
         protocolVersion: PROTOCOL_VERSION,
         type: "bike-geometry-inspected",
-        requestId,
+        requestId: REQUEST_ID,
         inspection: geometryInspection
       }).inspection
     ).toEqual(geometryInspection);
@@ -224,7 +305,18 @@ describe("physics worker contract", () => {
       bikeGeometryInspectedEventSchema.parse({
         protocolVersion: PROTOCOL_VERSION,
         type: "bike-geometry-inspected",
-        requestId,
+        requestId: REQUEST_ID,
+        inspection: {
+          ...geometryInspection,
+          massProperties: { ...geometryInspection.massProperties, distributionVersion: 1 }
+        }
+      })
+    ).toThrow();
+    expect(() =>
+      bikeGeometryInspectedEventSchema.parse({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "bike-geometry-inspected",
+        requestId: REQUEST_ID,
         inspection: geometryInspection,
         unexpected: true
       })
@@ -234,41 +326,39 @@ describe("physics worker contract", () => {
     expect(designValidatedEventSchema.shape.validation).toBeDefined();
   });
 
-  it("correlates geometry inspections and handles Phase 3 core operations", () => {
-    const wasm = wasmExports();
-    const runtime = createWorkerRuntime(wasm, createPhysicsController());
-    const firstRequestId = "11111111-1111-4111-8111-111111111111";
-    const latestRequestId = "22222222-2222-4222-8222-222222222222";
+  it("returns exactly one correlated event per Designer command", () => {
+    const runtime = createWorkerRuntime(wasmExports());
 
     const stale = runtime.handleCommand({
       protocolVersion: PROTOCOL_VERSION,
       type: "inspect-bike-geometry",
-      requestId: firstRequestId,
+      requestId: REQUEST_ID,
       bike: currentScenario.bike
     });
     const latest = runtime.handleCommand({
       protocolVersion: PROTOCOL_VERSION,
       type: "inspect-bike-geometry",
-      requestId: latestRequestId,
+      requestId: OTHER_REQUEST_ID,
       bike: currentScenario.bike
     });
 
-    expect(stale[0]).toMatchObject({
-      type: "bike-geometry-inspected",
-      requestId: firstRequestId
-    });
-    expect(latest[0]).toEqual({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "bike-geometry-inspected",
-      requestId: latestRequestId,
-      inspection: geometryInspection
-    });
+    expect(stale).toEqual([
+      expect.objectContaining({ type: "bike-geometry-inspected", requestId: REQUEST_ID })
+    ]);
+    expect(latest).toEqual([
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        type: "bike-geometry-inspected",
+        requestId: OTHER_REQUEST_ID,
+        inspection: geometryInspection
+      }
+    ]);
 
     expect(
       runtime.handleCommand({
         protocolVersion: PROTOCOL_VERSION,
         type: "resolve-pose-edit",
-        requestId: firstRequestId,
+        requestId: REQUEST_ID,
         scenario: currentScenario,
         keyIndex: 0,
         baselineTargets: currentScenario.poseClip.keys[0].targets,
@@ -277,7 +367,7 @@ describe("physics worker contract", () => {
     ).toEqual([
       expect.objectContaining({
         type: "pose-edit-resolved",
-        requestId: firstRequestId,
+        requestId: REQUEST_ID,
         resolution: expect.objectContaining({ requestedValid: true })
       })
     ]);
@@ -285,16 +375,44 @@ describe("physics worker contract", () => {
       runtime.handleCommand({
         protocolVersion: PROTOCOL_VERSION,
         type: "validate-design",
-        requestId: latestRequestId,
+        requestId: OTHER_REQUEST_ID,
         scenario: currentScenario
       })
     ).toEqual([
       expect.objectContaining({
         type: "design-validated",
-        requestId: latestRequestId,
+        requestId: OTHER_REQUEST_ID,
         validation: designValidation
       })
     ]);
+    expect(
+      runtime.handleCommand({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "sample-pose",
+        requestId: REQUEST_ID,
+        poseClip: currentScenario.poseClip,
+        s: 0,
+        rider: currentScenario.rider,
+        bike: currentScenario.bike
+      })
+    ).toEqual([expect.objectContaining({ type: "pose-sample", sample: poseSample })]);
+    expect(
+      runtime.handleCommand({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "cancel",
+        requestId: REQUEST_ID,
+        runId: RUN_ID
+      })
+    ).toEqual([
+      { protocolVersion: PROTOCOL_VERSION, type: "cancelled", requestId: REQUEST_ID, runId: RUN_ID }
+    ]);
+    expect(
+      runtime.handleCommand({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "dispose",
+        requestId: REQUEST_ID
+      })
+    ).toEqual([{ protocolVersion: PROTOCOL_VERSION, type: "disposed", requestId: REQUEST_ID }]);
   });
 
   it("validates every authored key up to the 64-key contract limit", () => {
@@ -308,15 +426,9 @@ describe("physics worker contract", () => {
       }))
     };
     const runtime = createWorkerRuntime(
-      wasmExports({ validateDesignJson: () => JSON.stringify(validation64) }),
-      createPhysicsController()
+      wasmExports({ validateDesignJson: () => JSON.stringify(validation64) })
     );
-    const [event] = runtime.handleCommand({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "validate-design",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      scenario: currentScenario
-    });
+    const event = singleEvent(runtime.handleCommand(commandFor("validate-design")));
 
     expect(event.type).toBe("design-validated");
     if (event.type === "design-validated") {
@@ -327,83 +439,297 @@ describe("physics worker contract", () => {
     }
   });
 
-  it("refuses invalid designs before dispatching any solve export", () => {
-    const solveScenarioJson = vi.fn(() => "{}");
-    const invalid = {
-      ...designValidation,
-      canSolve: false,
-      conflictCount: 1,
-      poseKeys: [
-        {
-          ...keyValidation,
-          valid: false,
-          conflicts: [
-            {
-              code: "rider-bike-overlap",
-              kind: "clearance" as const,
-              keyIndex: 0,
-              riderPart: "leftThigh" as const,
-              bikePart: "topTube" as const,
-              separation: -0.02,
-              message: "Rider envelope overlaps protected bicycle geometry"
-            }
-          ]
-        }
-      ]
-    };
-    const runtime = createWorkerRuntime(
-      wasmExports({
-        solveScenarioJson,
-        validateDesignJson: () => JSON.stringify(invalid)
-      }),
-      createPhysicsController()
-    );
-    const [event] = runtime.handleCommand({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "solve",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "33333333-3333-4333-8333-333333333333",
-      scenario: currentScenario
+  describe("init", () => {
+    it("reports ready with the core's versions and two-body capabilities", () => {
+      const event = singleEvent(createWorkerRuntime(wasmExports()).handleCommand(initCommand));
+
+      expect(event).toMatchObject({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "ready",
+        requestId: REQUEST_ID,
+        solverVersion: SOLVER_VERSION,
+        modelVersion: MODEL_VERSION
+      });
+      if (event.type !== "ready") throw new Error("expected ready");
+      expect(event.capabilities).toEqual({
+        protocolVersion: PROTOCOL_VERSION,
+        solverVersion: SOLVER_VERSION,
+        modelVersion: MODEL_VERSION,
+        ...coreCapabilities
+      });
     });
 
-    expect(event).toMatchObject({ type: "error", code: "design-invalid", recoverable: true });
-    expect(solveScenarioJson).not.toHaveBeenCalled();
+    it("returns protocol-mismatch when the core speaks another protocol", () => {
+      const capabilitiesJson = vi.fn(() => JSON.stringify(coreCapabilities));
+      const event = singleEvent(
+        createWorkerRuntime(
+          wasmExports({
+            versionsJson: () => JSON.stringify(coreVersions({ protocolVersion: 3 })),
+            capabilitiesJson
+          })
+        ).handleCommand(initCommand)
+      );
+
+      expect(event).toMatchObject({
+        type: "error",
+        requestId: REQUEST_ID,
+        runId: null,
+        code: "protocol-mismatch",
+        recoverable: false,
+        details: { operation: "init" }
+      });
+      if (event.type === "error") expect(event.message).toMatch(/core protocol 3/);
+      expect(capabilitiesJson).not.toHaveBeenCalled();
+    });
+
+    it("returns solver-version-mismatch when the core was built from another solver", () => {
+      const event = singleEvent(
+        createWorkerRuntime(
+          wasmExports({
+            versionsJson: () => JSON.stringify(coreVersions({ solverVersion: "rapier-old" }))
+          })
+        ).handleCommand(initCommand)
+      );
+
+      expect(event).toMatchObject({
+        type: "error",
+        code: "solver-version-mismatch",
+        recoverable: false
+      });
+      if (event.type === "error") expect(event.message).toMatch(/core solver rapier-old/);
+    });
+
+    it("refuses a core whose frame or telemetry layout differs", () => {
+      const swappedFields = FRAME_LAYOUT_FIELDS.map((field) => field.name);
+      [swappedFields[1], swappedFields[2]] = [swappedFields[2]!, swappedFields[1]!];
+
+      for (const [versions, message] of [
+        [{ frameFields: swappedFields }, /frame layout/],
+        [{ frameFields: swappedFields.slice(0, 36) }, /frame layout/],
+        [{ frameLayoutVersion: 2 }, /frame layout/],
+        [{ telemetryLayoutVersion: 1 }, /telemetry layout/],
+        [
+          {
+            telemetryChannels: [
+              { name: "contactImpulse", unit: "N*s" },
+              { name: "motorWork", unit: "J" }
+            ]
+          },
+          /telemetry layout/
+        ]
+      ] as const) {
+        const event = singleEvent(
+          createWorkerRuntime(
+            wasmExports({ versionsJson: () => JSON.stringify(coreVersions(versions)) })
+          ).handleCommand(initCommand)
+        );
+        expect(event).toMatchObject({ type: "error", recoverable: false });
+        if (event.type === "error") {
+          expect(["protocol-mismatch", "solver-version-mismatch"]).toContain(event.code);
+          expect(event.message).toMatch(message);
+        }
+      }
+    });
+
+    it("exposes the version check used at startup", () => {
+      expect(checkCoreVersions(coreVersions())).toBeNull();
+      expect(checkCoreVersions(coreVersions({ protocolVersion: 3 }))).toMatch(/protocol/);
+      expect(checkCoreVersions(coreVersions({ solverVersion: "other" }))).toMatch(/solver/);
+      expect(checkCoreVersions(coreVersions({ frameLayoutVersion: 2 }))).toMatch(/frame layout/);
+      expect(
+        checkCoreVersions(coreVersions({ telemetryChannels: [{ name: "speed", unit: "m/s" }] }))
+      ).toMatch(/telemetry layout/);
+    });
   });
 
-  it("returns a typed error when geometry inspection output is invalid", () => {
-    const wasm: WasmExports = {
-      solveScenarioJson: () => "{}",
-      solveFrameBuffer: () => new Float32Array(0),
-      solveTelemetryBuffer: () => new Float32Array(0),
-      samplePoseJson: () => "{}",
-      analyzeSpeedWindowJson: () => "{}",
-      terrainProfileJson: () => "{}",
-      inspectBikeGeometry: () => '{"valid":true}',
-      capabilitiesJson: () => "{}"
-    };
-    const [event] = createWorkerRuntime(wasm, createPhysicsController()).handleCommand({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "inspect-bike-geometry",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      bike: currentScenario.bike
+  describe("solve", () => {
+    it("builds a layout 3 RunResult with interleaved telemetry and a landing outcome", () => {
+      const result = solveResult();
+      const solve = vi.fn((_scenarioJson: string, _runId: string) => result);
+      const event = singleEvent(
+        createWorkerRuntime(wasmExports({ solve })).handleCommand(solveCommand())
+      );
+
+      expect(solve).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(solve.mock.calls[0]![0])).toEqual(currentScenario);
+      expect(solve.mock.calls[0]![1]).toBe(RUN_ID);
+      expect(result.free).toHaveBeenCalledTimes(1);
+
+      expect(event.type).toBe("result");
+      if (event.type !== "result") throw new Error("worker did not return a result");
+      expect(event.protocolVersion).toBe(4);
+      expect(event.source).toBe("solver");
+      expect(event.runId).toBe(RUN_ID);
+
+      const manifest = runResultSchema.parse(event.manifest);
+      expect(manifest).toEqual({ ...fixtureResult, runId: RUN_ID });
+      expect(manifest.frameLayout).toEqual({
+        version: 3,
+        strideFloat32: 57,
+        fields: expect.arrayContaining([
+          { name: "t", offset: 0, length: 1 },
+          { name: "minClearance", offset: 35, length: 1 },
+          { name: "pitchRate", offset: 36, length: 1 },
+          { name: "riderOffsetAngle", offset: 43, length: 1 },
+          { name: "crashed", offset: 56, length: 1 }
+        ])
+      });
+      expect(manifest.telemetry).toEqual({
+        layoutVersion: 2,
+        strideFloat32: 4,
+        sampleCount: fixtureResult.frameCount,
+        channels: [
+          { name: "contactImpulse", unit: "N*s", offset: 0 },
+          { name: "actuatorWork", unit: "J", offset: 1 },
+          { name: "speed", unit: "m/s", offset: 2 },
+          { name: "comHeight", unit: "m", offset: 3 }
+        ]
+      });
+      expect(manifest.landing).toEqual(fixtureResult.landing);
+
+      expect(event.frameBuffer.byteLength).toBe(
+        fixtureResult.frameCount * FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT
+      );
+      expect(event.frameBuffer).not.toBe(result.frames.buffer);
+      expect(new Float32Array(event.frameBuffer)).toEqual(result.frames);
+      expect(event.telemetryBuffer.byteLength).toBe(
+        fixtureResult.frameCount * TELEMETRY_CHANNELS.length * Float32Array.BYTES_PER_ELEMENT
+      );
+      expect(new Float32Array(event.telemetryBuffer)).toEqual(result.telemetry);
     });
 
-    expect(event).toMatchObject({
-      type: "error",
-      runId: null,
-      code: "invalid-bike-json",
-      recoverable: true
+    it.each([
+      [
+        "a short frame buffer",
+        { frames: fixtureResult.frameCount * FRAME_STRIDE_FLOAT32 - 1 },
+        /frame buffer length/
+      ],
+      [
+        "an extra frame",
+        { frames: (fixtureResult.frameCount + 1) * FRAME_STRIDE_FLOAT32 },
+        /frame buffer length/
+      ],
+      [
+        "a short telemetry buffer",
+        { telemetry: fixtureResult.frameCount * 4 - 4 },
+        /telemetry buffer length/
+      ],
+      [
+        "a different core stride",
+        { manifest: coreManifest({ strideFloat32: 36 }), frames: fixtureResult.frameCount * 36 },
+        /core stride 36/
+      ]
+    ] as const)("rejects %s with buffer-layout-error", (_label, options, message) => {
+      const result = solveResult(options);
+      const event = singleEvent(
+        createWorkerRuntime(wasmExports({ solve: () => result })).handleCommand(solveCommand())
+      );
+
+      expect(event).toMatchObject({
+        type: "error",
+        requestId: REQUEST_ID,
+        runId: RUN_ID,
+        code: "buffer-layout-error",
+        recoverable: false,
+        details: { operation: "solve" }
+      });
+      if (event.type === "error") expect(event.message).toMatch(message);
+      expect(result.free).toHaveBeenCalledTimes(1);
     });
-    expect(() => workerEventSchema.parse(event)).not.toThrow();
+
+    it("rejects a core manifest missing its landing outcome", () => {
+      const { landing: _landing, ...withoutLanding } = coreManifest();
+      const result = solveResult({ manifest: withoutLanding });
+      const event = singleEvent(
+        createWorkerRuntime(wasmExports({ solve: () => result })).handleCommand(solveCommand())
+      );
+
+      expect(event).toMatchObject({ type: "error", runId: RUN_ID, code: "internal-error" });
+      expect(result.free).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("core errors", () => {
+    it.each([
+      ["solve", "invalid scenario json: missing field `schemaVersion`", "invalid-scenario"],
+      ["solve", "invalid scenario: jump.gap must be between 0 and 20, got 25", "invalid-scenario"],
+      ["solve", "unsupported schemaVersion", "unsupported-schema"],
+      ["solve", "design-invalid", "design-invalid"],
+      ["solve", "rapier panicked", "internal-error"],
+      [
+        "inspect-bike-geometry",
+        "invalid bike json: missing field `frameType`",
+        "invalid-bike-json"
+      ],
+      ["resolve-pose-edit", "invalid-baseline", "invalid-baseline"],
+      ["resolve-pose-edit", "unsupported-schema", "unsupported-schema"],
+      ["validate-design", "invalid scenario json: expected value", "invalid-scenario"]
+    ] as const)("maps a string thrown by %s (%s) to %s", (type, thrown, code: WorkerErrorCode) => {
+      const fail = throwing(thrown);
+      const runtime = createWorkerRuntime(
+        wasmExports({
+          solve: fail,
+          inspectBikeGeometry: fail,
+          resolvePoseEditJson: fail,
+          validateDesignJson: fail
+        })
+      );
+      const event = singleEvent(runtime.handleCommand(commandFor(type)));
+
+      expect(event).toEqual({
+        protocolVersion: PROTOCOL_VERSION,
+        type: "error",
+        requestId: REQUEST_ID,
+        runId: type === "solve" ? RUN_ID : null,
+        code,
+        message: thrown,
+        details: { operation: type },
+        recoverable: true
+      });
+    });
+
+    it("reports a WebAssembly trap as a non-recoverable core crash", () => {
+      const runtime = createWorkerRuntime(
+        wasmExports({ solve: throwing(new WebAssembly.RuntimeError("unreachable executed")) })
+      );
+      const event = singleEvent(runtime.handleCommand(solveCommand()));
+
+      expect(event).toMatchObject({
+        type: "error",
+        runId: RUN_ID,
+        code: "core-crashed",
+        message: "unreachable executed",
+        recoverable: false
+      });
+    });
+
+    it("returns a typed error when core output fails its contract", () => {
+      const event = singleEvent(
+        createWorkerRuntime(
+          wasmExports({ inspectBikeGeometry: () => '{"valid":true}' })
+        ).handleCommand(commandFor("inspect-bike-geometry"))
+      );
+
+      expect(event).toMatchObject({
+        type: "error",
+        runId: null,
+        code: "internal-error",
+        recoverable: true,
+        details: { operation: "inspect-bike-geometry" }
+      });
+    });
+
+    it("reads messages from both Error objects and wasm-bindgen strings", () => {
+      expect(coreErrorMessage(new Error("boom"))).toBe("boom");
+      expect(coreErrorMessage("design-invalid")).toBe("design-invalid");
+      expect(coreErrorMessage(42)).toBe("42");
+    });
   });
 
   it("keeps fixture Designer operations honest when canonical core output is unavailable", () => {
-    const [event] = createFixtureWorkerRuntime(runResultSchema.parse(runResultJson)).handleCommand({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "inspect-bike-geometry",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      bike: currentScenario.bike
-    });
+    const [event] = createFixtureWorkerRuntime(fixtureResult).handleCommand(
+      commandFor("inspect-bike-geometry")
+    );
 
     expect(event).toMatchObject({
       type: "error",
@@ -414,81 +740,10 @@ describe("physics worker contract", () => {
     expect(() => workerEventSchema.parse(event)).not.toThrow();
 
     for (const type of ["resolve-pose-edit", "validate-design"] as const) {
-      const command =
-        type === "resolve-pose-edit"
-          ? {
-              protocolVersion: PROTOCOL_VERSION,
-              type,
-              requestId: "22222222-2222-4222-8222-222222222222",
-              scenario: currentScenario,
-              keyIndex: 0,
-              baselineTargets: currentScenario.poseClip.keys[0].targets,
-              requestedTargets: currentScenario.poseClip.keys[0].targets
-            }
-          : {
-              protocolVersion: PROTOCOL_VERSION,
-              type,
-              requestId: "22222222-2222-4222-8222-222222222222",
-              scenario: currentScenario
-            };
-      expect(
-        createFixtureWorkerRuntime(runResultSchema.parse(runResultJson)).handleCommand(command)
-      ).toEqual([
+      expect(createFixtureWorkerRuntime(fixtureResult).handleCommand(commandFor(type))).toEqual([
         expect.objectContaining({ type: "error", code: "core-unavailable", recoverable: false })
       ]);
     }
-  });
-
-  it("advertises protocol v3 and the append-only frame layout v2 descriptor", () => {
-    const wasm: WasmExports = {
-      solveScenarioJson: () =>
-        JSON.stringify({
-          runId: "33333333-3333-4333-8333-333333333333",
-          scenarioHash: "a".repeat(64),
-          solverVersion: "v2",
-          outputHz: 120,
-          phases: [],
-          metrics: {},
-          resultHash: "b".repeat(64)
-        }),
-      solveFrameBuffer: () => new Float32Array(36),
-      solveTelemetryBuffer: () => new Float32Array(0),
-      samplePoseJson: () => "{}",
-      analyzeSpeedWindowJson: () => "{}",
-      terrainProfileJson: () => "{}",
-      inspectBikeGeometry: () => JSON.stringify(geometryInspection),
-      capabilitiesJson: () => "{}"
-    };
-    const runtime = createWorkerRuntime(wasm, createPhysicsController());
-    const events = runtime.handleCommand({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "solve",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "33333333-3333-4333-8333-333333333333",
-      scenario
-    });
-    const result = events.find((event) => event.type === "result");
-
-    expect(PROTOCOL_VERSION).toBe(3);
-    expect(result?.protocolVersion).toBe(3);
-    expect(result?.type).toBe("result");
-    if (!result || result.type !== "result") {
-      throw new Error("worker did not return a result");
-    }
-
-    expect(result.manifest.frameLayout).toEqual({
-      version: 2,
-      strideFloat32: 36,
-      fields: expect.arrayContaining([
-        { name: "t", offset: 0, length: 1 },
-        { name: "headY", offset: 30, length: 1 },
-        { name: "groundedRear", offset: 31, length: 1 },
-        { name: "groundedFront", offset: 32, length: 1 },
-        { name: "normalForceRear", offset: 33, length: 1 },
-        { name: "normalForceFront", offset: 34, length: 1 },
-        { name: "minClearance", offset: 35, length: 1 }
-      ])
-    });
   });
 
   it("returns a validated segmented terrain profile", () => {
@@ -516,159 +771,314 @@ describe("physics worker contract", () => {
       landingStartX: 5,
       sampleStep: 0.1
     };
-    const wasm: WasmExports = {
-      solveScenarioJson: () => "{}",
-      solveFrameBuffer: () => new Float32Array(0),
-      solveTelemetryBuffer: () => new Float32Array(0),
-      samplePoseJson: () => "{}",
-      analyzeSpeedWindowJson: () => "{}",
-      terrainProfileJson: () => JSON.stringify(profile),
-      inspectBikeGeometry: () => JSON.stringify(geometryInspection),
-      capabilitiesJson: () => "{}"
-    };
-    const runtime = createWorkerRuntime(wasm, createPhysicsController());
+    const runtime = createWorkerRuntime(
+      wasmExports({ terrainProfileJson: () => JSON.stringify(profile) })
+    );
 
     expect(
       runtime.handleCommand({
         protocolVersion: PROTOCOL_VERSION,
         type: "terrain",
-        requestId: "11111111-1111-4111-8111-111111111111",
-        scenario,
+        requestId: REQUEST_ID,
+        scenario: currentScenario,
         step: 0.1
       })
     ).toEqual([
       {
         protocolVersion: PROTOCOL_VERSION,
         type: "terrain",
-        requestId: "11111111-1111-4111-8111-111111111111",
+        requestId: REQUEST_ID,
         profile
       }
     ]);
   });
 
   it("validates ready capabilities with supported input and output arrays", () => {
-    expect(() =>
-      readyEventSchema.parse({
+    const ready = {
+      protocolVersion: PROTOCOL_VERSION,
+      type: "ready",
+      requestId: REQUEST_ID,
+      solverVersion: "v1",
+      modelVersion: "model-v1",
+      capabilities: {
         protocolVersion: PROTOCOL_VERSION,
-        type: "ready",
-        requestId: "11111111-1111-4111-8111-111111111111",
         solverVersion: "v1",
         modelVersion: "model-v1",
+        ...coreCapabilities
+      }
+    };
+    expect(() => readyEventSchema.parse(ready)).not.toThrow();
+    expect(() =>
+      readyEventSchema.parse({
+        ...ready,
         capabilities: {
-          protocolVersion: PROTOCOL_VERSION,
-          solverVersion: "v1",
-          modelVersion: "model-v1",
-          deterministic: true,
-          supportedScenarioPaths: ["scenario.entry.speed", "scenario.jump.gap"],
-          supportedOutputs: ["contactImpulse", "jointTorque"],
-          ccd: true,
-          contactImpulse: true,
-          motorWork: true,
-          jointTorque: true
+          ...ready.capabilities,
+          supportedScenarioPaths: ["scenario.entry.speed", "scenario.entry.speed"]
         }
       })
-    ).not.toThrow();
-
+    ).toThrow();
     expect(() =>
       readyEventSchema.parse({
-        protocolVersion: PROTOCOL_VERSION,
-        type: "ready",
-        requestId: "11111111-1111-4111-8111-111111111111",
-        solverVersion: "v1",
-        modelVersion: "model-v1",
-        capabilities: {
-          protocolVersion: PROTOCOL_VERSION,
-          solverVersion: "v1",
-          modelVersion: "model-v1",
-          deterministic: true,
-          supportedScenarioPaths: ["scenario.entry.speed", "scenario.entry.speed"],
-          supportedOutputs: ["contactImpulse"],
-          ccd: true,
-          contactImpulse: true,
-          motorWork: true,
-          jointTorque: true
-        }
+        ...ready,
+        capabilities: { ...ready.capabilities, motorWork: true, jointTorque: true }
       })
     ).toThrow();
   });
 
-  it("requires monotonic progress and validates malformed buffers", () => {
+  it("validates progress envelopes and malformed result buffers", () => {
     const valid = progressEventSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       type: "progress",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "22222222-2222-4222-8222-222222222222",
+      requestId: REQUEST_ID,
+      runId: OTHER_REQUEST_ID,
       completedSteps: 5,
       totalSteps: 10,
       fraction: 0.5
     });
 
     expect(valid.fraction).toBe(0.5);
-
     expect(() =>
-      progressEventSchema.parse({
-        ...valid,
-        completedSteps: 11,
-        fraction: 1.1
-      })
+      progressEventSchema.parse({ ...valid, completedSteps: 11, fraction: 1.1 })
     ).toThrow();
 
     const result = resultEventSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       type: "result",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "22222222-2222-4222-8222-222222222222",
+      requestId: REQUEST_ID,
+      runId: fixtureResult.runId,
       source: "solver",
-      manifest: {
-        runId: "22222222-2222-4222-8222-222222222222",
-        scenarioHash: "a".repeat(64),
-        solverVersion: "v1",
-        frameLayout: {
-          version: FRAME_LAYOUT_VERSION,
-          strideFloat32: FRAME_STRIDE_FLOAT32,
-          fields: FRAME_LAYOUT_FIELDS.map((field) => ({ ...field }))
-        },
-        frameCount: 1,
-        outputHz: 60,
-        phases: [{ name: "approach", startFrame: 0, endFrame: 0 }],
-        metrics: {},
-        telemetry: { layoutVersion: 1, sampleCount: 0, channels: [] },
-        resultHash: "b".repeat(64)
-      },
-      frameBuffer: new ArrayBuffer(FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT),
-      telemetryBuffer: new ArrayBuffer(0)
+      manifest: fixtureResult,
+      frameBuffer: new ArrayBuffer(
+        fixtureResult.frameCount * FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT
+      ),
+      telemetryBuffer: new ArrayBuffer(
+        fixtureResult.frameCount * TELEMETRY_CHANNELS.length * Float32Array.BYTES_PER_ELEMENT
+      )
     });
 
     expect(() => workerEventSchema.parse({ ...result, frameBuffer: "bad" })).toThrow();
+    expect(() => workerEventSchema.parse({ ...result, telemetryBuffer: null })).toThrow();
     expect(() =>
       workerEventSchema.parse({ ...result, source: "representative-fixture" })
     ).not.toThrow();
   });
+});
 
-  it("keeps stale results from overwriting active runs and supports cancellation", () => {
-    const controller = createPhysicsController();
-    const solve = solveCommandSchema.parse({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "solve",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "33333333-3333-4333-8333-333333333333",
-      scenario
-    });
+const readyEvent = (requestId: string): WorkerEvent => ({
+  protocolVersion: PROTOCOL_VERSION,
+  type: "ready",
+  requestId,
+  solverVersion: SOLVER_VERSION,
+  modelVersion: MODEL_VERSION,
+  capabilities: {
+    protocolVersion: PROTOCOL_VERSION,
+    solverVersion: SOLVER_VERSION,
+    modelVersion: MODEL_VERSION,
+    ...coreCapabilities
+  }
+});
 
-    controller.beginRun(solve.runId);
-    controller.beginRun("44444444-4444-4444-8444-444444444444");
-
-    const accepted = controller.acceptResultForRun(solve.runId);
-    expect(accepted).toBe(false);
-
-    const cancel = cancelCommandSchema.parse({
-      protocolVersion: PROTOCOL_VERSION,
-      type: "cancel",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      runId: "44444444-4444-4444-8444-444444444444"
-    });
-
-    controller.cancelRun(cancel.runId);
-    expect(controller.state.lifecycle).toBe("cancelling");
+/** A transport whose solves stay pending until the test settles them. */
+const createControlledTransport = () => {
+  const solves = new Map<
+    string,
+    {
+      command: WorkerCommand;
+      resolve: (event: WorkerEvent) => void;
+      reject: (error: Error) => void;
+    }
+  >();
+  const terminate = vi.fn((reason: WorkerErrorCode) => {
+    for (const [runId, pending] of solves) {
+      pending.reject(new SolverGatewayError(reason, `Physics core stopped: ${reason}`, true));
+      solves.delete(runId);
+    }
   });
+  const transport: SolverTransport = {
+    request: (command) => {
+      if (command.type === "init") return Promise.resolve(readyEvent(command.requestId));
+      if (command.type !== "solve") return Promise.reject(new Error(`unexpected ${command.type}`));
+      return new Promise((resolvePromise, reject) => {
+        solves.set(command.runId, { command, resolve: resolvePromise, reject });
+      });
+    },
+    terminate
+  };
+  return { transport, solves, terminate };
+};
+
+const resultFor = (command: WorkerCommand, runId: string): WorkerEvent => ({
+  protocolVersion: PROTOCOL_VERSION,
+  type: "result",
+  requestId: command.requestId,
+  runId,
+  source: "solver",
+  manifest: { ...fixtureResult, runId },
+  frameBuffer: new ArrayBuffer(
+    fixtureResult.frameCount * FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT
+  ),
+  telemetryBuffer: new ArrayBuffer(
+    fixtureResult.frameCount * TELEMETRY_CHANNELS.length * Float32Array.BYTES_PER_ELEMENT
+  )
+});
+
+describe("solver gateway", () => {
+  it("cancels only the active run by stopping the core", async () => {
+    const { transport, solves, terminate } = createControlledTransport();
+    const gateway = createSolverGateway(transport);
+
+    const pending = gateway.solve(RUN_ID, currentScenario);
+    await vi.waitFor(() => expect(solves.has(RUN_ID)).toBe(true));
+
+    await gateway.cancel(OTHER_RUN_ID);
+    expect(terminate).not.toHaveBeenCalled();
+
+    await gateway.cancel(RUN_ID);
+    expect(terminate).toHaveBeenCalledExactlyOnceWith("cancelled");
+    await expect(pending).rejects.toMatchObject({ name: "SolverGatewayError", code: "cancelled" });
+
+    await gateway.cancel(RUN_ID);
+    expect(terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a result that belongs to another run", async () => {
+    const { transport, solves } = createControlledTransport();
+    const gateway = createSolverGateway(transport);
+
+    const pending = gateway.solve(RUN_ID, currentScenario);
+    await vi.waitFor(() => expect(solves.has(RUN_ID)).toBe(true));
+    const { command, resolve: settle } = solves.get(RUN_ID)!;
+    settle(resultFor(command, OTHER_RUN_ID));
+
+    await expect(pending).rejects.toThrow("Result belongs to another run");
+  });
+
+  it("assembles a run artifact from the active run's result", async () => {
+    const { transport, solves } = createControlledTransport();
+    const gateway = createSolverGateway(transport);
+
+    const pending = gateway.solve(RUN_ID, currentScenario);
+    await vi.waitFor(() => expect(solves.has(RUN_ID)).toBe(true));
+    const { command, resolve: settle } = solves.get(RUN_ID)!;
+    settle(resultFor(command, RUN_ID));
+
+    const artifact = await pending;
+    expect(artifact.runId).toBe(RUN_ID);
+    expect(artifact.scenarioHash).toBe(await hashScenario(currentScenario));
+    expect(artifact.manifest.scenarioHash).toBe(artifact.scenarioHash);
+    expect(artifact.manifest.landing).toEqual(fixtureResult.landing);
+    expect(artifact.model.scenarioSchemaVersion).toBe(SCENARIO_SCHEMA_VERSION);
+  });
+
+  it("surfaces typed worker errors from an in-process runtime", async () => {
+    const mismatched = createSolverGateway(async () =>
+      createWorkerRuntime(
+        wasmExports({ versionsJson: () => JSON.stringify(coreVersions({ protocolVersion: 3 })) })
+      )
+    );
+    await expect(mismatched.initialize("0.2.0", SOLVER_VERSION)).rejects.toMatchObject({
+      code: "protocol-mismatch",
+      recoverable: false
+    });
+
+    const badBuffers = createSolverGateway(async () =>
+      createWorkerRuntime(wasmExports({ solve: () => solveResult({ frames: 1 }) }))
+    );
+    await expect(badBuffers.solve(RUN_ID, currentScenario)).rejects.toMatchObject({
+      code: "buffer-layout-error"
+    });
+
+    const working = createSolverGateway(async () => createWorkerRuntime(wasmExports()));
+    await expect(working.initialize("0.2.0", SOLVER_VERSION)).resolves.toMatchObject({
+      riderCoupling: true,
+      riderInstinct: true
+    });
+    const artifact = await working.solve(RUN_ID, currentScenario);
+    expect(artifact.source).toBe("solver");
+    expect(artifact.frameBuffer.byteLength).toBe(
+      fixtureResult.frameCount * FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT
+    );
+  });
+});
+
+const realCorePath = resolve("crates", "physics-core", "pkg-node", "physics_core.js");
+
+describe.skipIf(!existsSync(realCorePath))("real physics core (pkg-node)", () => {
+  const loadCore = (): WasmExports => createRequire(import.meta.url)(realCorePath) as WasmExports;
+
+  it("passes the startup version check", () => {
+    const core = loadCore();
+    expect(checkCoreVersions(JSON.parse(core.versionsJson()))).toBeNull();
+
+    const event = singleEvent(createWorkerRuntime(core).handleCommand(initCommand));
+    expect(event).toMatchObject({ type: "ready", solverVersion: SOLVER_VERSION });
+    if (event.type === "ready") {
+      expect(event.capabilities).toMatchObject({ riderCoupling: true, riderInstinct: true });
+    }
+  });
+
+  it("solves the standard scenario into a valid RunResult with a landing outcome", () => {
+    const runtime = createWorkerRuntime(loadCore());
+    const first = singleEvent(runtime.handleCommand(solveCommand()));
+    const second = singleEvent(runtime.handleCommand(solveCommand()));
+
+    if (first.type !== "result" || second.type !== "result") {
+      throw new Error(`expected a result, got ${JSON.stringify(first)}`);
+    }
+    const manifest = runResultSchema.parse(first.manifest);
+    expect(manifest.runId).toBe(RUN_ID);
+    expect(manifest.solverVersion).toBe(SOLVER_VERSION);
+    expect(manifest.outputHz).toBe(currentScenario.solver.outputHz);
+    expect(manifest.frameCount).toBeGreaterThan(0);
+    expect(manifest.phases.length).toBeGreaterThan(0);
+    expect(manifest.landing.status).toMatch(/^(landed|no-flight|stalled|airborne-at-end)$/);
+    expect(manifest.landing.severity).toMatch(/^(clean|crash)$/);
+    expect(manifest.telemetry.sampleCount).toBe(manifest.frameCount);
+
+    const frames = new Float32Array(first.frameBuffer);
+    expect(frames.length).toBe(manifest.frameCount * FRAME_STRIDE_FLOAT32);
+    expect(frames.every(Number.isFinite)).toBe(true);
+    expect(frames[FRAME_STRIDE_FLOAT32]! - frames[0]!).toBeCloseTo(1 / manifest.outputHz, 6);
+    expect(first.telemetryBuffer.byteLength).toBe(
+      manifest.frameCount * TELEMETRY_CHANNELS.length * Float32Array.BYTES_PER_ELEMENT
+    );
+
+    expect(second.manifest.resultHash).toBe(manifest.resultHash);
+    expect(new Float32Array(second.frameBuffer)).toEqual(frames);
+  }, 60_000);
+
+  it("maps real core rejections to typed errors", () => {
+    const runtime = createWorkerRuntime(loadCore());
+
+    expect(
+      singleEvent(runtime.handleCommand(solveCommand({ ...currentScenario, schemaVersion: 3 })))
+    ).toMatchObject({ type: "error", code: "unsupported-schema", runId: RUN_ID });
+    expect(
+      singleEvent(
+        runtime.handleCommand(
+          solveCommand({ ...currentScenario, jump: { ...currentScenario.jump, gap: 25 } })
+        )
+      )
+    ).toMatchObject({ type: "error", code: "invalid-scenario", runId: RUN_ID });
+    expect(
+      singleEvent(
+        runtime.handleCommand({
+          protocolVersion: PROTOCOL_VERSION,
+          type: "inspect-bike-geometry",
+          requestId: REQUEST_ID,
+          bike: {} as never
+        })
+      )
+    ).toMatchObject({ type: "error", code: "invalid-bike-json", runId: null });
+  });
+
+  it("runs end to end through the in-process gateway", async () => {
+    const core = loadCore();
+    const gateway = createSolverGateway(async () => createWorkerRuntime(core));
+    const artifact = await gateway.solve(RUN_ID, currentScenario);
+
+    expect(artifact.runId).toBe(RUN_ID);
+    expect(artifact.scenarioHash).toBe(await hashScenario(currentScenario));
+    expect(artifact.manifest.landing.reasons).toBeInstanceOf(Array);
+  }, 60_000);
 });

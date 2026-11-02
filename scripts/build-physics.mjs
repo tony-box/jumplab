@@ -8,8 +8,6 @@ const rootDir = resolve(__dirname, "..");
 
 const crateDir = resolve(rootDir, "crates", "physics-core");
 
-
-
 const run = (command, args, cwd = rootDir) => {
   const result = spawnSync(command, args, {
     cwd,
@@ -20,22 +18,6 @@ const run = (command, args, cwd = rootDir) => {
   if (result.status !== 0) {
     throw new Error(`Command failed: ${command} ${args.join(" ")}`);
   }
-};
-
-const runCapture = (command, args, cwd = rootDir) => {
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-    shell: globalThis.process.platform === "win32"
-  });
-
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    throw new Error(stderr ? `${command} failed: ${stderr}` : `${command} failed`);
-  }
-
-  return (result.stdout ?? "").trim();
 };
 
 const ensureWasmPack = () => {

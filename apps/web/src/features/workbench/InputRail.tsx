@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   lipAngleRange,
   spikeControlContracts,
@@ -33,6 +34,12 @@ const valueForControl = (scenario: Scenario, id: string): number => {
       return scenario.jump.landingLength;
     case "entry-speed":
       return scenario.entry.speed;
+    case "rider-strength":
+      return scenario.rider.strengthScale;
+    case "instinct-angle":
+      return scenario.solver.riderInstinct.enabled ? scenario.solver.riderInstinct.maxAngle : 0;
+    case "instinct-offset":
+      return scenario.solver.riderInstinct.enabled ? scenario.solver.riderInstinct.maxOffset : 0;
     default:
       throw new Error(`Unknown control ${id}`);
   }
@@ -88,7 +95,7 @@ const renderControl = (
   );
 };
 
-export const InputRail = ({
+const InputRailView = ({
   scenario,
   onJumpKindChange,
   onControlChange,
@@ -130,6 +137,16 @@ export const InputRail = ({
         <h2>Entry</h2>
         {renderControl(scenario, "entry-speed", supportedPaths, onControlChange)}
       </section>
+
+      <section className="control-group" data-od-id="panel-rider">
+        <h2>Rider</h2>
+        {renderControl(scenario, "rider-strength", supportedPaths, onControlChange)}
+        {renderControl(scenario, "instinct-angle", supportedPaths, onControlChange)}
+        {renderControl(scenario, "instinct-offset", supportedPaths, onControlChange)}
+      </section>
     </aside>
   );
 };
+
+/** Memoized so playback, which re-renders the page every frame, does not re-render the rail. */
+export const InputRail = memo(InputRailView);

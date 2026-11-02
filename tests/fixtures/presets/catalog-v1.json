@@ -11,7 +11,7 @@
         "kind": "table",
         "lipHeight": 1.2,
         "lipAngle": 0.82,
-        "transitionLength": 1.7,
+        "transitionLength": 2.760961448004383,
         "gap": 6,
         "stepDelta": 0,
         "landingAngle": 0.35,
@@ -19,7 +19,7 @@
         "rollout": 5
       },
       "entry": {
-        "speed": 7.2,
+        "speed": 10.8,
         "startX": -5
       }
     },
@@ -38,7 +38,7 @@
         "kind": "table",
         "lipHeight": 1.45,
         "lipAngle": 0.93,
-        "transitionLength": 1.65,
+        "transitionLength": 2.890221607713838,
         "gap": 6.4,
         "stepDelta": 0,
         "landingAngle": 0.52,
@@ -46,7 +46,7 @@
         "rollout": 5
       },
       "entry": {
-        "speed": 8.4,
+        "speed": 10.8,
         "startX": -5
       }
     },
@@ -65,7 +65,7 @@
         "kind": "stepup",
         "lipHeight": 1.28,
         "lipAngle": 0.84,
-        "transitionLength": 1.75,
+        "transitionLength": 2.866275615573269,
         "gap": 5.6,
         "stepDelta": 1.2,
         "landingAngle": 0.44,
@@ -98,9 +98,7 @@
         "mass": 61,
         "legRatio": 0.47,
         "armRatio": 0.36,
-        "strengthScale": 0.92,
-        "kp": 1400,
-        "kd": 110
+        "strengthScale": 0.92
       }
     },
     "readOnly": true,
@@ -119,9 +117,7 @@
         "mass": 84,
         "legRatio": 0.49,
         "armRatio": 0.39,
-        "strengthScale": 1.2,
-        "kp": 1700,
-        "kd": 130
+        "strengthScale": 1.2
       }
     },
     "readOnly": true,

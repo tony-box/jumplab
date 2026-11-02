@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   hashScenario,
-  normalizeLipAngle,
+  normalizeJump,
   scenarioSchema,
   spikeControlContracts,
   type BaselineSelection,
@@ -83,6 +83,17 @@ const updateControlValue = (scenario: Scenario, controlId: string, value: number
     case "rider-mass":
       next.rider.mass = value;
       break;
+    case "rider-strength":
+      next.rider.strengthScale = value;
+      break;
+    case "instinct-angle":
+      next.solver.riderInstinct.maxAngle = value;
+      next.solver.riderInstinct.enabled = value > 0 || next.solver.riderInstinct.maxOffset > 0;
+      break;
+    case "instinct-offset":
+      next.solver.riderInstinct.maxOffset = value;
+      next.solver.riderInstinct.enabled = value > 0 || next.solver.riderInstinct.maxAngle > 0;
+      break;
     case "wheelbase":
       next.bike.wheelbase = value;
       break;
@@ -98,9 +109,12 @@ const updateControlValue = (scenario: Scenario, controlId: string, value: number
     default:
       throw new Error(`Unknown control ${controlId}`);
   }
-  if (controlId === "lip-height" || controlId === "transition-length") {
-    next.jump.lipAngle = normalizeLipAngle(next.jump);
+  // A kicker is a circular arc: editing its length sets the lip angle that produces it, and
+  // editing height or angle re-derives the length.
+  if (controlId === "transition-length" && next.jump.kind !== "drop") {
+    next.jump.lipAngle = 2 * Math.atan(next.jump.lipHeight / value);
   }
+  next.jump = normalizeJump(next.jump);
   return scenarioSchema.parse(next);
 };
 
@@ -195,7 +209,7 @@ export const useWorkbench = () => {
       try {
         const cachedCurrent =
           artifactCacheRef.current.get(activeRunId) ??
-          (await services.runArtifactRepository.get(activeRunId));
+          (await services.runArtifactRepository.getStored(activeRunId));
         if (!cachedCurrent) {
           const listed = await services.runArtifactRepository.list();
           const legacy = listed.find((entry) => entry.runId === activeRunId)?.legacySnapshotMissing;
@@ -288,6 +302,18 @@ export const useWorkbench = () => {
         : null,
     [currentArtifact]
   );
+  const trajectory = useMemo(() => {
+    if (!frameView?.hasField("x") || !frameView.hasField("y")) return [];
+    const points: Array<{ x: number; y: number }> = [];
+    for (let index = 0; index < frameView.frameCount; index += 1) {
+      points.push({
+        x: frameView.readField(index, "x")[0] ?? 0,
+        y: frameView.readField(index, "y")[0] ?? 0
+      });
+    }
+    return points;
+  }, [frameView]);
+
   const baselineFrameView = useMemo(
     () =>
       baselineArtifact
@@ -345,27 +371,35 @@ export const useWorkbench = () => {
     };
   }, [services.solverGateway, terrainKey, terrainSampleStep]);
 
-  const updateControl = (controlId: string, value: number) => {
-    const contract = contractsById.get(controlId);
-    if (!contract || !supportedPaths.has(contract.scenarioPath)) {
-      return;
-    }
+  const updateControl = useCallback(
+    (controlId: string, value: number) => {
+      const contract = contractsById.get(controlId);
+      if (!contract || !supportedPaths.has(contract.scenarioPath)) {
+        return;
+      }
 
-    actions.updateScenario((current) => updateControlValue(current, controlId, value));
-    setStatusLabel("stale result");
-  };
+      actions.updateScenario((current) => updateControlValue(current, controlId, value));
+      setStatusLabel("stale result");
+    },
+    [actions, supportedPaths]
+  );
 
-  const setJumpKind = (kind: Scenario["jump"]["kind"]) => {
-    if (!scenario || !supportedPaths.has("scenario.jump.kind")) return;
-    const next = structuredClone(scenario) as Scenario;
-    next.jump.kind = kind;
-    next.jump.stepDelta =
-      kind === "stepup" ? 0.5 : kind === "stepdown" || kind === "drop" ? -0.5 : 0;
-    // A drop has no kicker, so seed a level edge instead of carrying the previous ramp angle.
-    if (kind === "drop") next.jump.lipAngle = 0;
-    next.jump.lipAngle = normalizeLipAngle(next.jump);
-    actions.updateScenario(() => scenarioSchema.parse(next));
-  };
+  const setJumpKind = useCallback(
+    (kind: Scenario["jump"]["kind"]) => {
+      if (!supportedPaths.has("scenario.jump.kind")) return;
+      actions.updateScenario((current) => {
+        const next = structuredClone(current) as Scenario;
+        next.jump.kind = kind;
+        next.jump.stepDelta =
+          kind === "stepup" ? 0.5 : kind === "stepdown" || kind === "drop" ? -0.5 : 0;
+        // A drop has no kicker, so seed a level edge instead of carrying the previous ramp angle.
+        if (kind === "drop") next.jump.lipAngle = 0;
+        next.jump = normalizeJump(next.jump);
+        return scenarioSchema.parse(next);
+      });
+    },
+    [actions, supportedPaths]
+  );
 
   const solve = async () => {
     if (!scenario) {
@@ -386,18 +420,27 @@ export const useWorkbench = () => {
     setSurfaceError(null);
     setStatusLabel("solving");
 
+    const solvedScenario = scenario;
     try {
-      const artifact = await services.solverGateway.solve(runId, scenario);
+      const artifact = await services.solverGateway.solve(runId, solvedScenario);
       if (useAppStore.getState().solver.activeRunId !== runId) {
         return;
       }
 
       actions.reportProgress(runId, 1, "Solve complete");
       artifactCacheRef.current.set(runId, artifact);
-      await services.runArtifactRepository.save(artifact);
-      actions.commitRunResult(artifact.manifest);
+      // Edits made while the core was working leave this result describing an older scenario.
+      const editedDuringSolve = useAppStore.getState().scenario.scenario !== solvedScenario;
+      actions.commitRunResult(artifact.manifest, { stale: editedDuringSolve });
       setCurrentArtifact(artifact);
-      setStatusLabel("solved");
+      setStatusLabel(editedDuringSolve ? "stale result" : "solved");
+      try {
+        await services.runArtifactRepository.save(artifact);
+      } catch (error) {
+        setSurfaceError(
+          `The run solved but could not be saved: ${error instanceof Error ? error.message : "storage error"}`
+        );
+      }
     } catch (error) {
       actions.failSolve(error instanceof Error ? error.message : "Solve failed");
       setSurfaceError(error instanceof Error ? error.message : "Solve failed");
@@ -451,11 +494,13 @@ export const useWorkbench = () => {
     resetCamera,
     supportedPaths,
     statusLabel,
+    resultState: scenarioState.resultState,
     initError,
     surfaceError,
     run: runState.active,
     solver: solverState,
     frameView,
+    trajectory,
     baselineFrameView,
     baselineSelection,
     toggleBaseline,

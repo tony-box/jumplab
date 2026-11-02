@@ -7,6 +7,7 @@ import type {
 } from "../../../../../packages/schema/src/index";
 
 import { useAppServices } from "../../app/AppProviders";
+import { useCanvasResize } from "../../rendering/canvas/useCanvasResize";
 import { drawWorkbenchStage, type WorkbenchFrame } from "../../rendering/canvas/workbench-stage";
 import {
   clampZoomFactor,
@@ -29,6 +30,7 @@ type WorkbenchStageProps = {
   touchdownFrame: number | null;
   overlays: string[];
   camera: CameraViewState;
+  trajectory: readonly { x: number; y: number }[];
   onManualCameraChange: (manual: ManualCameraState) => void;
 };
 
@@ -43,6 +45,7 @@ export const WorkbenchStage = ({
   touchdownFrame,
   overlays,
   camera,
+  trajectory,
   onManualCameraChange
 }: WorkbenchStageProps) => {
   const services = useAppServices();
@@ -52,6 +55,7 @@ export const WorkbenchStage = ({
   const pinchDistanceRef = useRef<number | null>(null);
   const [canonicalGeometry, setCanonicalGeometry] = useState<BikeGeometryInspection | null>(null);
   const geometryRequestRef = useRef(0);
+  const resizeTick = useCanvasResize(canvasRef);
 
   useEffect(() => {
     const requestId = ++geometryRequestRef.current;
@@ -83,6 +87,7 @@ export const WorkbenchStage = ({
           overlays,
           camera,
           canonicalGeometry,
+          trajectory,
           viewOverride
         });
       } catch (error) {
@@ -135,23 +140,7 @@ export const WorkbenchStage = ({
       });
     }
 
-    if (typeof ResizeObserver === "undefined") {
-      return () => cancelAnimationFrame(animationFrame);
-    }
-    let observedWidth = canvas.clientWidth;
-    let observedHeight = canvas.clientHeight;
-    const observer = new ResizeObserver(() => {
-      if (canvas.clientWidth === observedWidth && canvas.clientHeight === observedHeight) return;
-      observedWidth = canvas.clientWidth;
-      observedHeight = canvas.clientHeight;
-      cancelAnimationFrame(animationFrame);
-      resolutionRef.current = render() ?? resolutionRef.current;
-    });
-    observer.observe(canvas);
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      observer.disconnect();
-    };
+    return () => cancelAnimationFrame(animationFrame);
   }, [
     baselineFrame,
     camera,
@@ -160,10 +149,12 @@ export const WorkbenchStage = ({
     frameIndex,
     onManualCameraChange,
     overlays,
+    resizeTick,
     run,
     scenario,
     terrainProfile,
-    touchdownFrame
+    touchdownFrame,
+    trajectory
   ]);
 
   useEffect(
@@ -230,9 +221,26 @@ export const WorkbenchStage = ({
     );
   };
 
-  const phase =
-    run?.phases.find((item) => frameIndex >= item.startFrame && frameIndex <= item.endFrame)
-      ?.name ?? "ready";
+  const zoomAtRef = useRef(zoomAt);
+  zoomAtRef.current = zoomAt;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // React registers wheel handlers as passive, which ignores preventDefault and scrolls the page.
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      zoomAtRef.current(event.deltaY < 0 ? 1.12 : 1 / 1.12, event.clientX, event.clientY);
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const phase = !run
+    ? "no run"
+    : frame.crashed
+      ? "crashed"
+      : (run.phases.find((item) => frameIndex >= item.startFrame && frameIndex <= item.endFrame)
+          ?.name ?? "ready");
   const contactForce =
     frame.normalForceRear === undefined || frame.normalForceFront === undefined
       ? null
@@ -267,10 +275,6 @@ export const WorkbenchStage = ({
       <canvas
         ref={canvasRef}
         aria-label="Jump simulation stage"
-        onWheel={(event) => {
-          event.preventDefault();
-          zoomAt(event.deltaY < 0 ? 1.12 : 1 / 1.12, event.clientX, event.clientY);
-        }}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -305,10 +309,11 @@ export const WorkbenchStage = ({
       <p className="sr-only" aria-live="polite">
         Frame {frameIndex}: bike at {frame.x.toFixed(2)} metres horizontal and {frame.y.toFixed(2)}{" "}
         metres high, pitch {((frame.pitch * 180) / Math.PI).toFixed(1)} degrees. Phase {phase}.{" "}
-        {frame.landmarks
-          ? "Rider posture is available for this frame."
-          : "Rider posture is unavailable for this legacy run."}{" "}
-        Bike fit is shown schematically; wheels and rider contacts are measured.
+        {!run
+          ? "No run has been solved yet."
+          : frame.landmarks
+            ? "Rider posture is available for this frame."
+            : "Rider posture is unavailable for this legacy run."}
       </p>
       <div
         className="stage-badge top-left"
@@ -317,9 +322,8 @@ export const WorkbenchStage = ({
           touchdownFrame !== null && frameIndex === touchdownFrame ? "true" : "false"
         }
       >
-        {phase} · <strong>frame {frameIndex}</strong> · contact{" "}
-        {contactForce?.toFixed(1) ?? "unavailable"}
-        {contactForce === null ? "" : " N"} · touchdown {touchdownFrame ?? "not measured"}
+        {phase} · <strong>frame {frameIndex}</strong>
+        {contactForce === null ? "" : ` · contact ${contactForce.toFixed(0)} N`}
       </div>
       <div className="stage-badge top-right" data-od-id="terrain-status">
         terrain {terrainState} · camera {camera.mode}

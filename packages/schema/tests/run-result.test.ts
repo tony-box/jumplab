@@ -4,18 +4,24 @@ import {
   FRAME_LAYOUT_FIELDS,
   FRAME_LAYOUT_VERSION,
   FRAME_STRIDE_FLOAT32,
+  TELEMETRY_CHANNELS,
+  TELEMETRY_LAYOUT_VERSION,
   achievedPoseLandmarksSchema,
+  bikeMassPropertiesSchema,
   frameLayoutSchema,
+  landingOutcomeSchema,
   phasesSchema,
   poseSampleSchema,
   runResultSchema,
+  telemetrySchema,
   type RunResult
 } from "../src/index";
+import standardRunResult from "../../../tests/fixtures/run-results/standard-v2.json";
 
 const validResult: RunResult = {
   runId: "dcfd7cb6-c9d6-4f6d-95f9-6cf95df5b15d",
   scenarioHash: "a".repeat(64),
-  solverVersion: "rapier-0.35.2-enhanced-determinism",
+  solverVersion: "rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2",
   frameLayout: {
     version: FRAME_LAYOUT_VERSION,
     strideFloat32: FRAME_STRIDE_FLOAT32,
@@ -24,7 +30,8 @@ const validResult: RunResult = {
   frameCount: 120,
   outputHz: 240,
   phases: [
-    { name: "approach", startFrame: 0, endFrame: 39 },
+    { name: "approach", startFrame: 0, endFrame: 29 },
+    { name: "transition", startFrame: 30, endFrame: 39 },
     { name: "takeoff", startFrame: 40, endFrame: 49 },
     { name: "flight", startFrame: 50, endFrame: 94 },
     { name: "landing", startFrame: 95, endFrame: 109 },
@@ -32,20 +39,33 @@ const validResult: RunResult = {
   ],
   metrics: {
     airtime: { value: 0.64, unit: "s", source: "measured", reason: null },
+    sweetSpotOffset: {
+      value: 0.2,
+      unit: "m",
+      source: "estimate",
+      reason: "landing contact interpolated between frames"
+    },
     peakSuspensionForce: {
       value: null,
       unit: "N",
-      source: "pending-core",
-      reason: "awaiting telemetry integration"
+      source: "unavailable",
+      reason: "suspension is not simulated"
     }
   },
+  landing: {
+    status: "landed",
+    region: "sweet-spot",
+    attitude: "balanced",
+    firstContact: "rear",
+    severity: "clean",
+    crashTime: null,
+    reasons: []
+  },
   telemetry: {
-    layoutVersion: 1,
-    sampleCount: 240,
-    channels: [
-      { name: "contactImpulse", unit: "N*s", offset: 0, count: 120 },
-      { name: "motorWork", unit: "J", offset: 120, count: 120 }
-    ]
+    layoutVersion: TELEMETRY_LAYOUT_VERSION,
+    strideFloat32: TELEMETRY_CHANNELS.length,
+    sampleCount: 120,
+    channels: TELEMETRY_CHANNELS.map((channel, offset) => ({ ...channel, offset }))
   },
   resultHash: "b".repeat(64)
 };
@@ -55,24 +75,42 @@ describe("run-result schema", () => {
     expect(() => runResultSchema.parse(validResult)).not.toThrow();
   });
 
-  it("enforces metric source and reason rules", () => {
-    expect(() =>
-      runResultSchema.parse({
-        ...validResult,
-        metrics: {
-          broken: { value: null, unit: "s", source: "measured", reason: null }
-        }
-      })
-    ).toThrow();
+  it("accepts the real solver output fixture", () => {
+    const parsed = runResultSchema.parse(standardRunResult);
+    expect(parsed.frameLayout.version).toBe(3);
+    expect(parsed.telemetry.sampleCount).toBe(parsed.frameCount);
+    expect(parsed.landing.status).toBe("landed");
+  });
 
-    expect(() =>
-      runResultSchema.parse({
-        ...validResult,
-        metrics: {
-          broken: { value: 1, unit: "s", source: "pending-core", reason: null }
-        }
-      })
-    ).toThrow();
+  it("describes frame layout 3 as 57 packed scalar fields", () => {
+    expect(FRAME_LAYOUT_VERSION).toBe(3);
+    expect(FRAME_STRIDE_FLOAT32).toBe(57);
+    expect(FRAME_LAYOUT_FIELDS).toHaveLength(57);
+    expect(FRAME_LAYOUT_FIELDS.map((field) => field.offset)).toEqual(
+      Array.from({ length: 57 }, (_, index) => index)
+    );
+    expect(FRAME_LAYOUT_FIELDS.every((field) => field.length === 1)).toBe(true);
+    expect(FRAME_LAYOUT_FIELDS.slice(0, 3).map((field) => field.name)).toEqual(["t", "x", "y"]);
+    expect(FRAME_LAYOUT_FIELDS[36]?.name).toBe("pitchRate");
+    expect(FRAME_LAYOUT_FIELDS.at(-1)?.name).toBe("crashed");
+    expect(new Set(FRAME_LAYOUT_FIELDS.map((field) => field.name)).size).toBe(57);
+  });
+
+  it("enforces metric source and reason rules", () => {
+    const withMetric = (metric: unknown) =>
+      runResultSchema.safeParse({ ...validResult, metrics: { broken: metric } }).success;
+
+    expect(withMetric({ value: null, unit: "s", source: "measured", reason: null })).toBe(false);
+    expect(withMetric({ value: 1, unit: "s", source: "measured", reason: "why" })).toBe(false);
+    expect(withMetric({ value: 1, unit: "s", source: "pending-core", reason: null })).toBe(false);
+    expect(withMetric({ value: 1, unit: "s", source: "estimate", reason: null })).toBe(false);
+    expect(withMetric({ value: null, unit: "s", source: "unavailable", reason: null })).toBe(false);
+    expect(withMetric({ value: 1, unit: "s", source: "guess", reason: "x" })).toBe(false);
+    expect(withMetric({ value: 1, unit: "s", source: "estimate", reason: "approx" })).toBe(true);
+    expect(withMetric({ value: null, unit: "s", source: "unavailable", reason: "n/a" })).toBe(true);
+    expect(withMetric({ value: null, unit: "s", source: "pending-core", reason: "later" })).toBe(
+      true
+    );
   });
 
   it("enforces phase ordering and non-overlap", () => {
@@ -94,7 +132,7 @@ describe("run-result schema", () => {
     ).toThrow();
   });
 
-  it("enforces packed layout and telemetry bounds", () => {
+  it("enforces the packed frame layout", () => {
     expect(() =>
       frameLayoutSchema.parse({
         version: FRAME_LAYOUT_VERSION,
@@ -106,15 +144,115 @@ describe("run-result schema", () => {
       })
     ).toThrow();
 
+    const fields = FRAME_LAYOUT_FIELDS.map((field) => ({ ...field }));
+    const swapped = fields.map((field, index) =>
+      index === 1 ? { ...field, name: "y" } : index === 2 ? { ...field, name: "x" } : field
+    );
+    expect(() => frameLayoutSchema.parse({ ...validResult.frameLayout, fields: swapped })).toThrow(
+      /field 1 must be x/
+    );
+    expect(() =>
+      frameLayoutSchema.parse({ ...validResult.frameLayout, fields: fields.slice(0, 36) })
+    ).toThrow(/requires 57 fields/);
+    expect(() => frameLayoutSchema.parse({ ...validResult.frameLayout, version: 2 })).toThrow();
+    expect(() =>
+      frameLayoutSchema.parse({ ...validResult.frameLayout, strideFloat32: 36 })
+    ).toThrow();
+  });
+
+  it("enforces the interleaved telemetry layout", () => {
+    expect(TELEMETRY_LAYOUT_VERSION).toBe(2);
+    expect(TELEMETRY_CHANNELS.map((channel) => channel.name)).toEqual([
+      "contactImpulse",
+      "actuatorWork",
+      "speed",
+      "comHeight"
+    ]);
+
+    expect(() =>
+      telemetrySchema.parse({
+        layoutVersion: 2,
+        strideFloat32: 4,
+        sampleCount: 10,
+        channels: [{ name: "contactImpulse", unit: "N*s", offset: 4 }]
+      })
+    ).toThrow(/offset exceeds the sample stride/);
+    expect(() =>
+      telemetrySchema.parse({
+        layoutVersion: 1,
+        strideFloat32: 4,
+        sampleCount: 10,
+        channels: []
+      })
+    ).toThrow();
+    expect(() =>
+      telemetrySchema.parse({
+        layoutVersion: 2,
+        sampleCount: 10,
+        channels: [{ name: "contactImpulse", unit: "N*s", offset: 0, count: 10 }]
+      })
+    ).toThrow();
     expect(() =>
       runResultSchema.parse({
         ...validResult,
-        telemetry: {
-          layoutVersion: 1,
-          sampleCount: 10,
-          channels: [{ name: "contactImpulse", unit: "N*s", offset: 8, count: 8 }]
-        }
+        telemetry: { ...validResult.telemetry, strideFloat32: 0 }
       })
+    ).toThrow();
+  });
+
+  it("requires a structured landing outcome", () => {
+    const { landing: _landing, ...withoutLanding } = validResult;
+    expect(() => runResultSchema.parse(withoutLanding)).toThrow();
+
+    expect(() =>
+      landingOutcomeSchema.parse({
+        status: "landed",
+        region: "case",
+        attitude: "nose-heavy",
+        firstContact: "front",
+        severity: "crash",
+        crashTime: 1.42,
+        reasons: ["cased the deck 4.30 m short of the landing"]
+      })
+    ).not.toThrow();
+    expect(() =>
+      landingOutcomeSchema.parse({
+        status: "no-flight",
+        region: null,
+        attitude: null,
+        firstContact: null,
+        severity: "clean",
+        crashTime: null,
+        reasons: ["never left the ground"]
+      })
+    ).not.toThrow();
+
+    for (const invalid of [
+      { status: "crashed" },
+      { region: "perfect" },
+      { attitude: "level" },
+      { firstContact: "frame" },
+      { severity: "minor" },
+      { crashTime: Number.NaN },
+      { reasons: [""] },
+      { label: "clean landing" }
+    ]) {
+      expect(() =>
+        runResultSchema.parse({ ...validResult, landing: { ...validResult.landing, ...invalid } })
+      ).toThrow();
+    }
+  });
+
+  it("requires mass distribution version 2", () => {
+    const massProperties = {
+      totalMass: 14,
+      centerOfGravity: { x: 0.57, y: 0.54 },
+      planarInertia: 2.8,
+      distributionVersion: 2
+    };
+    expect(() => bikeMassPropertiesSchema.parse(massProperties)).not.toThrow();
+    expect(() =>
+      bikeMassPropertiesSchema.parse({ ...massProperties, distributionVersion: 1 })
     ).toThrow();
   });
 });
@@ -137,7 +275,7 @@ describe("pose sample schema", () => {
     targets: { knee: 0.9, hip: 0.4, spine: 0.15 },
     derivedArm: { shoulder: -0.2, elbow: 1.1, constrained: false },
     landmarks: validLandmarks,
-    solverVersion: "rapier-0.35.2-enhanced-determinism"
+    solverVersion: "rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2"
   };
 
   it("accepts a valid pose sample with achieved landmarks", () => {

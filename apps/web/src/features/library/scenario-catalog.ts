@@ -1,7 +1,7 @@
 import {
   entrySpeedWindowInfoSchema,
   hashScenario,
-  normalizeLipAngle,
+  normalizeJump,
   presetSchema,
   scenarioSchema,
   type EntrySpeedWindowInfo,
@@ -88,8 +88,7 @@ const applyPresetPatch = (base: Scenario, preset: Preset, nextName: string): Sce
   const merged = mergeDeep(base, preset.patch) as Record<string, unknown>;
   merged.id = crypto.randomUUID();
   merged.name = nextName;
-  const jump = merged.jump as Scenario["jump"];
-  jump.lipAngle = normalizeLipAngle(jump);
+  merged.jump = normalizeJump(merged.jump as Scenario["jump"]);
   return scenarioSchema.parse(merged);
 };
 

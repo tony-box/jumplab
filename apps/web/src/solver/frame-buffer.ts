@@ -26,7 +26,7 @@ export type TelemetryBufferView = {
 const assertValidFrameLayout = (layout: FrameLayout, frameBuffer: ArrayBuffer): void => {
   const expectedBytes = layout.strideFloat32 * 4;
   if (expectedBytes <= 0 || frameBuffer.byteLength % expectedBytes !== 0) {
-    throw new Error("buffer_layout_error: invalid frame byte length");
+    throw new Error("buffer-layout-error: invalid frame byte length");
   }
 };
 
@@ -41,12 +41,12 @@ export const createFrameBufferView = (
 
   const readField = (frameIndex: number, fieldName: string): Float32Array => {
     if (frameIndex < 0 || frameIndex >= frameCount) {
-      throw new Error("buffer_layout_error: frame index out of bounds");
+      throw new Error("buffer-layout-error: frame index out of bounds");
     }
 
     const field = frameLayout.fields.find((entry) => entry.name === fieldName);
     if (!field) {
-      throw new Error(`buffer_layout_error: unknown field ${fieldName}`);
+      throw new Error(`buffer-layout-error: unknown field ${fieldName}`);
     }
 
     const start = frameIndex * frameLayout.strideFloat32 + field.offset;
@@ -56,7 +56,7 @@ export const createFrameBufferView = (
   const readScalar = (frameIndex: number, fieldName: string): number => {
     const value = readField(frameIndex, fieldName)[0];
     if (value === undefined) {
-      throw new Error(`buffer_layout_error: empty field ${fieldName}`);
+      throw new Error(`buffer-layout-error: empty field ${fieldName}`);
     }
     return value;
   };
@@ -82,8 +82,9 @@ export const createTelemetryBufferView = (
   telemetryBuffer: ArrayBuffer
 ): TelemetryBufferView => {
   const data = new Float32Array(telemetryBuffer);
-  if (telemetry.sampleCount > data.length) {
-    throw new Error("buffer_layout_error: telemetry sampleCount exceeds buffer");
+  const stride = telemetry.strideFloat32;
+  if (telemetry.sampleCount * stride > data.length) {
+    throw new Error("buffer-layout-error: telemetry sampleCount exceeds buffer");
   }
 
   return {
@@ -92,9 +93,13 @@ export const createTelemetryBufferView = (
     readChannel: (name) => {
       const channel = telemetry.channels.find((entry) => entry.name === name);
       if (!channel) {
-        throw new Error(`buffer_layout_error: unknown channel ${name}`);
+        throw new Error(`buffer-layout-error: unknown channel ${name}`);
       }
-      return data.slice(channel.offset, channel.offset + channel.count);
+      const values = new Float32Array(telemetry.sampleCount);
+      for (let sample = 0; sample < telemetry.sampleCount; sample += 1) {
+        values[sample] = data[sample * stride + channel.offset] ?? Number.NaN;
+      }
+      return values;
     }
   };
 };

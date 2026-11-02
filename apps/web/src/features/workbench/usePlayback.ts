@@ -76,11 +76,7 @@ export const usePlayback = (
     const tick = (timestamp: number) => {
       if (lastTimestamp.current !== null) {
         const elapsedFrames = ((timestamp - lastTimestamp.current) / 1000) * outputHz * rate;
-        setFramePosition((current) => {
-          const next = clampFramePosition(current + elapsedFrames, frameCount);
-          if (next === frameCount - 1) setPlaying(false);
-          return next;
-        });
+        setFramePosition((current) => clampFramePosition(current + elapsedFrames, frameCount));
       }
       lastTimestamp.current = timestamp;
       animationFrame = requestAnimationFrame(tick);
@@ -91,8 +87,19 @@ export const usePlayback = (
   }, [frameCount, outputHz, playing, rate]);
 
   useEffect(() => {
+    if (playing && framePosition >= frameCount - 1) setPlaying(false);
+  }, [frameCount, framePosition, playing]);
+
+  useEffect(() => {
     setFramePosition((current) => clampFramePosition(current, frameCount));
   }, [frameCount]);
+
+  const togglePlaying = useCallback(() => {
+    lastTimestamp.current = null;
+    // Playing from the last frame replays the run instead of stopping immediately.
+    if (!playing && framePosition >= frameCount - 1) setFramePosition(0);
+    setPlaying(!playing);
+  }, [frameCount, framePosition, playing]);
 
   const setFrameIndex = useCallback(
     (nextFrameIndex: number) => {
@@ -116,7 +123,7 @@ export const usePlayback = (
     (event: KeyboardEvent) => {
       if (event.key === " ") {
         event.preventDefault();
-        setPlaying((current) => !current);
+        togglePlaying();
         return;
       }
 
@@ -131,7 +138,7 @@ export const usePlayback = (
         setFramePosition((current) => clampFrameIndex(Math.floor(current) + 1, frameCount));
       }
     },
-    [frameCount]
+    [frameCount, togglePlaying]
   );
 
   return {
@@ -141,10 +148,7 @@ export const usePlayback = (
     rate,
     setFrameIndex,
     setRate,
-    togglePlaying: () => {
-      lastTimestamp.current = null;
-      setPlaying((current) => !current);
-    },
+    togglePlaying,
     step: (delta: number) =>
       setFramePosition((current) => clampFrameIndex(Math.floor(current) + delta, frameCount)),
     goToStart: () => setFrameIndex(0),

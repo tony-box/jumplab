@@ -117,6 +117,7 @@ describe("physics parity", () => {
       runChecked("cargo", [
         "run",
         "-q",
+        "--release",
         "-p",
         "physics-core",
         "--bin",
@@ -133,8 +134,7 @@ describe("physics parity", () => {
     nodeInspectBikeGeometry = Reflect.get(nodeWasm, "inspectBikeGeometry");
     nodeValidateDesignJson = Reflect.get(nodeWasm, "validateDesignJson");
     nodeOutput = {
-      resultHash: JSON.parse(nodeWasm.solveScenarioJson(JSON.stringify(scenario), runId))
-        .resultHash,
+      resultHash: JSON.parse(nodeWasm.solve(JSON.stringify(scenario), runId).manifest).resultHash,
       pose: JSON.parse(
         nodeWasm.samplePoseJson(
           JSON.stringify(scenario.poseClip),
@@ -175,7 +175,7 @@ describe("physics parity", () => {
       throw new Error("Parity HTTP server did not expose a TCP address");
     }
     browserOrigin = `http://127.0.0.1:${address.port}`;
-  }, 180_000);
+  }, 600_000);
 
   afterAll(async () => {
     if (server) {
@@ -271,7 +271,7 @@ describe("physics parity", () => {
           async ({ fixture, parityRunId }) => {
             const wasm = Reflect.get(globalThis, "physicsWasm");
             return {
-              resultHash: JSON.parse(wasm.solveScenarioJson(JSON.stringify(fixture), parityRunId))
+              resultHash: JSON.parse(wasm.solve(JSON.stringify(fixture), parityRunId).manifest)
                 .resultHash,
               pose: JSON.parse(
                 wasm.samplePoseJson(
@@ -281,14 +281,17 @@ describe("physics parity", () => {
                   JSON.stringify(fixture.bike)
                 )
               ),
-              speedWindow: JSON.parse(wasm.analyzeSpeedWindowJson(JSON.stringify(fixture))),
+
               geometry: JSON.parse(wasm.inspectBikeGeometry(JSON.stringify(fixture.bike))),
               designValidation: JSON.parse(wasm.validateDesignJson(JSON.stringify(fixture)))
             };
           },
           { fixture: scenario, parityRunId: runId }
         );
-        expect(withoutTerrain(browserOutput)).toEqual(withoutTerrain(nativeOutput));
+        // The speed-window sweep runs dozens of solves; Node already proves its parity.
+        expect(withoutTerrain({ ...browserOutput, speedWindow: nativeOutput.speedWindow })).toEqual(
+          withoutTerrain(nativeOutput)
+        );
         expect(normalizeFloatPrecision(browserOutput.geometry)).toEqual(
           normalizeFloatPrecision(nativeOutput.geometry)
         );

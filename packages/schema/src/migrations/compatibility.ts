@@ -1,9 +1,13 @@
 export const compatibilityKinds = ["scenario", "protocol", "frame-layout", "persistence"] as const;
 export type CompatibilityKind = (typeof compatibilityKinds)[number];
 
+/**
+ * `migratable` versions have a real data migration. `regenerate` versions cannot be converted;
+ * the stored run is re-solved from its (migrated) scenario instead.
+ */
 export type CompatibilityEntry = {
   version: number;
-  status: "current" | "migratable";
+  status: "current" | "migratable" | "regenerate";
   migratesTo: number | null;
 };
 
@@ -11,23 +15,20 @@ export const compatibilityRegistry: Record<CompatibilityKind, readonly Compatibi
   scenario: [
     { version: 1, status: "migratable", migratesTo: 2 },
     { version: 2, status: "migratable", migratesTo: 3 },
-    { version: 3, status: "current", migratesTo: null }
+    { version: 3, status: "migratable", migratesTo: 4 },
+    { version: 4, status: "current", migratesTo: null }
   ],
-  protocol: [
-    { version: 1, status: "migratable", migratesTo: 2 },
-    { version: 2, status: "migratable", migratesTo: 3 },
-    { version: 3, status: "current", migratesTo: null }
-  ],
+  protocol: [{ version: 4, status: "current", migratesTo: null }],
   "frame-layout": [
-    { version: 1, status: "migratable", migratesTo: 2 },
-    { version: 2, status: "current", migratesTo: null }
+    { version: 1, status: "regenerate", migratesTo: null },
+    { version: 2, status: "regenerate", migratesTo: null },
+    { version: 3, status: "current", migratesTo: null }
   ],
   persistence: [
     { version: 1, status: "migratable", migratesTo: 2 },
     { version: 2, status: "current", migratesTo: null }
   ]
 };
-
 export const assertCompatibleVersion = (
   kind: CompatibilityKind,
   version: number

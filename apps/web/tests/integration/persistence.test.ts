@@ -20,7 +20,7 @@ const scenario = scenarioSchema.parse(
   JSON.parse(readFileSync(resolve("tests/fixtures/scenarios/standard-v1.json"), "utf8"))
 );
 const result = runResultSchema.parse(
-  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v1.json"), "utf8"))
+  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v2.json"), "utf8"))
 );
 
 let database: BikeJumperDatabase;
@@ -84,14 +84,14 @@ describe("offline persistence", () => {
     expect(await repositories.scenarios.get(scenario.id)).toBeUndefined();
   });
 
-  it("round-trips the whole v3 scenario and migrates legacy v2 files without changing poses", async () => {
+  it("round-trips the whole current scenario and migrates legacy v2 files without changing poses", async () => {
     const exported = await exportScenarioBlob(
       scenario,
       { appVersion: "0.1.0", solverVersion: scenario.solver.solverVersion },
       "2026-01-01T00:00:00.000Z"
     );
     const roundTrip = await importScenarioBlob(exported);
-    expect(roundTrip.schemaVersion).toBe(3);
+    expect(roundTrip.schemaVersion).toBe(4);
     expect(roundTrip.scenario).toEqual(scenario);
     expect(roundTrip.contentHash).toBe(await hashScenario(scenario));
 
@@ -113,8 +113,8 @@ describe("offline persistence", () => {
     ]);
     const migrated = await importScenarioBlob(legacyBlob);
 
-    expect(migrated.schemaVersion).toBe(3);
-    expect(migrated.scenario.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.scenario.schemaVersion).toBe(4);
     expect(migrated.scenario.bike.geometry.modelVersion).toBe(1);
     expect(migrated.scenario.poseClip.keys).toEqual(legacyScenario.poseClip.keys);
     expect(migrated.contentHash).toBe(await hashScenario(migrated.scenario));
@@ -180,6 +180,8 @@ describe("offline persistence", () => {
 
     const replacementFrameBuffer = new Float32Array(72).fill(7).buffer;
     const replaced = await repositories.runs.replaceSolution(result.runId, {
+      scenarioSnapshot: artifact.scenarioSnapshot,
+      scenarioHash: artifact.scenarioHash,
       manifest: { ...artifact.manifest },
       model: { ...artifact.model, modelVersion: "model-v2" },
       frameBuffer: replacementFrameBuffer,
@@ -222,6 +224,8 @@ describe("offline persistence", () => {
 
     await expect(
       repositories.runs.replaceSolution(result.runId, {
+        scenarioSnapshot: artifact.scenarioSnapshot,
+        scenarioHash: artifact.scenarioHash,
         manifest: { ...artifact.manifest, solverVersion: "mismatched-solver" },
         model: artifact.model,
         frameBuffer: new Float32Array(72).buffer,
@@ -267,6 +271,8 @@ describe("offline persistence", () => {
 
     await expect(
       repositories.runs.replaceSolution(result.runId, {
+        scenarioSnapshot: artifact.scenarioSnapshot,
+        scenarioHash: artifact.scenarioHash,
         manifest: artifact.manifest,
         model: { ...artifact.model, modelVersion: "model-v2" },
         frameBuffer: new Float32Array(72).buffer,

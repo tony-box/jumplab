@@ -16,6 +16,7 @@ import type {
   PoseSample,
   Preset
 } from "../../../../packages/schema/src/index";
+import type { StoredRun } from "../features/workbench/legacy-regeneration";
 import type { ValidationSuiteSnapshot } from "../features/validation/validation-runner";
 
 export type AppError = {
@@ -63,10 +64,18 @@ export type RunArtifactRepository = {
     runId: string,
     derivedSolution: Pick<
       RunArtifact,
-      "manifest" | "model" | "frameBuffer" | "telemetryBuffer" | "source"
+      | "scenarioSnapshot"
+      | "scenarioHash"
+      | "manifest"
+      | "model"
+      | "frameBuffer"
+      | "telemetryBuffer"
+      | "source"
     >
   ) => Promise<RunArtifact>;
   get: (runId: string) => Promise<RunArtifact | null>;
+  /** The run as stored, unparsed, so older runs can be verified and regenerated. */
+  getStored: (runId: string) => Promise<StoredRun | null>;
   list: () => Promise<
     Array<Pick<RunArtifact, "runId" | "createdAt" | "source"> & { legacySnapshotMissing?: boolean }>
   >;

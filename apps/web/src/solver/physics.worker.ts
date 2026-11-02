@@ -1,422 +1,341 @@
 import {
-  PROTOCOL_VERSION,
-  terrainProfileSchema,
-  type WorkerCommand,
-  type WorkerEvent
-} from "../../../../packages/schema/src/worker-protocol";
-import {
   FRAME_LAYOUT_FIELDS,
   FRAME_LAYOUT_VERSION,
   FRAME_STRIDE_FLOAT32,
+  PROTOCOL_VERSION,
+  SOLVER_VERSION,
+  TELEMETRY_CHANNELS,
+  TELEMETRY_LAYOUT_VERSION,
   bikeGeometryInspectionSchema,
   designValidationSchema,
+  entrySpeedWindowSchema,
   poseEditResolutionSchema,
-  type Metric,
-  type Phase
-} from "../../../../packages/schema/src/run-result";
+  poseSampleSchema,
+  runResultSchema,
+  solverCapabilityManifestSchema,
+  terrainProfileSchema,
+  type RunResult,
+  type WorkerCommand,
+  type WorkerErrorCode,
+  type WorkerEvent
+} from "../../../../packages/schema/src/index";
 
-import { versionManifest } from "../app/version-manifest";
-import type { PhysicsController } from "./controller";
-
-type SolveCommand = Extract<WorkerCommand, { type: "solve" }>;
-type SamplePoseCommand = Extract<WorkerCommand, { type: "sample-pose" }>;
-type AnalyzeSpeedWindowCommand = Extract<WorkerCommand, { type: "analyze-speed-window" }>;
-type TerrainCommand = Extract<WorkerCommand, { type: "terrain" }>;
-type InspectBikeGeometryCommand = Extract<WorkerCommand, { type: "inspect-bike-geometry" }>;
-type ResolvePoseEditCommand = Extract<WorkerCommand, { type: "resolve-pose-edit" }>;
-type ValidateDesignCommand = Extract<WorkerCommand, { type: "validate-design" }>;
-
-type WasmPhase = {
-  name: Phase["name"];
-  start_frame: number;
-  end_frame: number;
-};
-
-type WasmSolveOutput = {
-  runId: string;
-  scenarioHash: string;
-  solverVersion: string;
-  outputHz: number;
-  frameCount?: number;
-  phases: WasmPhase[];
-  metrics: Record<string, Metric>;
-  resultHash: string;
-  frames?: unknown[];
+/** Result of the core's single `solve` export: manifest JSON plus binary rows. */
+export type WasmSolveResult = {
+  readonly manifest: string;
+  readonly frames: Float32Array;
+  readonly telemetry: Float32Array;
+  free?: () => void;
 };
 
 export type WasmExports = {
-  solveScenarioJson: (scenarioJson: string, runId: string) => string;
-  solveFrameBuffer: (scenarioJson: string, runId: string) => Float32Array | number[];
-  solveTelemetryBuffer: (scenarioJson: string, runId: string) => Float32Array | number[];
+  solve: (scenarioJson: string, runId: string) => WasmSolveResult;
+  versionsJson: () => string;
   samplePoseJson: (poseClipJson: string, s: number, riderJson: string, bikeJson: string) => string;
   analyzeSpeedWindowJson: (scenarioJson: string) => string;
   terrainProfileJson: (scenarioJson: string, step: number) => string;
   inspectBikeGeometry: (bikeJson: string) => string;
-  resolvePoseEditJson?: (
+  resolvePoseEditJson: (
     scenarioJson: string,
     keyIndex: number,
     baselineTargetsJson: string,
     requestedTargetsJson: string
   ) => string;
-  validateDesignJson?: (scenarioJson: string) => string;
+  validateDesignJson: (scenarioJson: string) => string;
   capabilitiesJson: () => string;
 };
 
-const arrayToBuffer = (data: Float32Array | number[]): ArrayBuffer => {
-  const values = data instanceof Float32Array ? data : Float32Array.from(data);
-  return new Float32Array(values).buffer;
+export type WorkerRuntime = { handleCommand: (command: WorkerCommand) => WorkerEvent[] };
+
+type CoreVersions = {
+  protocolVersion: number;
+  frameLayoutVersion: number;
+  telemetryLayoutVersion: number;
+  modelVersion: string;
+  solverVersion: string;
+  frameFields: string[];
+  telemetryChannels: { name: string; unit: string }[];
 };
 
-const normalizePhases = (phases: WasmPhase[]): Phase[] => {
-  const normalized: Phase[] = [];
-  for (const phase of phases) {
-    const previousEnd = normalized.at(-1)?.endFrame ?? -1;
-    const startFrame = Math.max(phase.start_frame, previousEnd + 1);
-    if (startFrame > phase.end_frame) continue;
-    normalized.push({ name: phase.name, startFrame, endFrame: phase.end_frame });
+type CoreSolveManifest = {
+  scenarioHash: string;
+  solverVersion: string;
+  modelVersion: string;
+  frameLayoutVersion: number;
+  outputHz: number;
+  strideFloat32: number;
+  frameCount: number;
+  telemetryStrideFloat32: number;
+  phases: RunResult["phases"];
+  metrics: RunResult["metrics"];
+  landing: RunResult["landing"];
+  resultHash: string;
+};
+
+/** wasm-bindgen throws plain strings, not `Error` objects. */
+export const coreErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const isCoreCrash = (error: unknown): boolean =>
+  typeof WebAssembly !== "undefined" && error instanceof WebAssembly.RuntimeError;
+
+const classifyCoreError = (message: string): WorkerErrorCode => {
+  if (message.includes("design-invalid")) return "design-invalid";
+  if (message.includes("invalid-baseline")) return "invalid-baseline";
+  if (message.includes("unsupported-schema") || message.includes("unsupported schemaVersion")) {
+    return "unsupported-schema";
   }
-  return normalized;
+  if (message.includes("invalid bike")) return "invalid-bike-json";
+  if (message.includes("invalid scenario")) {
+    return "invalid-scenario";
+  }
+  return "internal-error";
 };
 
-const coreUnavailable = (
-  command: ResolvePoseEditCommand | ValidateDesignCommand
-): Extract<WorkerEvent, { type: "error" }> => ({
+const errorEvent = (
+  command: WorkerCommand,
+  code: WorkerErrorCode,
+  message: string,
+  recoverable: boolean
+): WorkerEvent => ({
   protocolVersion: PROTOCOL_VERSION,
   type: "error",
   requestId: command.requestId,
-  runId: null,
-  code: "core-unavailable",
-  message: `${command.type} is unavailable in the loaded physics core`,
+  runId: command.type === "solve" ? command.runId : null,
+  code,
+  message: message || "Physics core failed",
   details: { operation: command.type },
-  recoverable: false
+  recoverable
 });
 
-export const createWorkerRuntime = (
-  wasm: WasmExports,
-  controller: PhysicsController
-): { handleCommand: (command: WorkerCommand) => WorkerEvent[] } => {
-  const handleSolve = (command: SolveCommand): WorkerEvent[] => {
-    if (wasm.validateDesignJson) {
-      const validation = designValidationSchema.parse(
-        JSON.parse(wasm.validateDesignJson(JSON.stringify(command.scenario)))
-      );
-      if (!validation.canSolve) {
-        const firstConflict = validation.poseKeys.flatMap((key) => key.conflicts)[0];
-        return [
-          {
-            protocolVersion: PROTOCOL_VERSION,
-            type: "error",
-            requestId: command.requestId,
-            runId: command.runId,
-            code: "design-invalid",
-            message: firstConflict?.message ?? "Bike and pose design is invalid",
-            details: {
-              conflictCount: validation.conflictCount,
-              conflictCode: firstConflict?.code ?? validation.geometry.issues[0]?.code ?? "unknown"
-            },
-            recoverable: true
-          }
-        ];
-      }
-    }
-    controller.beginRun(command.runId);
+/** Checks the loaded core against the versions and layouts this app was built for. */
+export const checkCoreVersions = (versions: CoreVersions): string | null => {
+  if (versions.protocolVersion !== PROTOCOL_VERSION) {
+    return `core protocol ${versions.protocolVersion} does not match app protocol ${PROTOCOL_VERSION}`;
+  }
+  if (versions.solverVersion !== SOLVER_VERSION) {
+    return `core solver ${versions.solverVersion} does not match ${SOLVER_VERSION}`;
+  }
+  if (
+    versions.frameLayoutVersion !== FRAME_LAYOUT_VERSION ||
+    versions.frameFields.length !== FRAME_STRIDE_FLOAT32 ||
+    versions.frameFields.some((name, index) => FRAME_LAYOUT_FIELDS[index]?.name !== name)
+  ) {
+    return "core frame layout does not match the app's frame layout";
+  }
+  if (
+    versions.telemetryLayoutVersion !== TELEMETRY_LAYOUT_VERSION ||
+    versions.telemetryChannels.length !== TELEMETRY_CHANNELS.length ||
+    versions.telemetryChannels.some(
+      (channel, index) => TELEMETRY_CHANNELS[index]?.name !== channel.name
+    )
+  ) {
+    return "core telemetry layout does not match the app's telemetry layout";
+  }
+  return null;
+};
 
-    const acceptedFraction = controller.acceptProgressForRun(command.runId, 1) ?? 1;
-
-    const progress: WorkerEvent = {
-      protocolVersion: PROTOCOL_VERSION,
-      type: "progress",
-      requestId: command.requestId,
-      runId: command.runId,
-      completedSteps: 1,
-      totalSteps: 1,
-      fraction: acceptedFraction
-    };
-
-    const solveOutput = JSON.parse(
-      wasm.solveScenarioJson(JSON.stringify(command.scenario), command.runId)
-    ) as WasmSolveOutput;
-
-    const frameBuffer = arrayToBuffer(
-      wasm.solveFrameBuffer(JSON.stringify(command.scenario), command.runId)
+const toRunResult = (
+  runId: string,
+  manifest: CoreSolveManifest,
+  frames: Float32Array,
+  telemetry: Float32Array
+): RunResult => {
+  if (manifest.strideFloat32 !== FRAME_STRIDE_FLOAT32) {
+    throw new Error(`buffer-layout-error: core stride ${manifest.strideFloat32}`);
+  }
+  if (frames.length !== manifest.frameCount * FRAME_STRIDE_FLOAT32) {
+    throw new Error("buffer-layout-error: frame buffer length does not match frameCount");
+  }
+  if (manifest.telemetryStrideFloat32 !== TELEMETRY_CHANNELS.length) {
+    throw new Error(
+      `buffer-layout-error: core telemetry stride ${manifest.telemetryStrideFloat32}`
     );
-    const telemetryBuffer = arrayToBuffer(
-      wasm.solveTelemetryBuffer(JSON.stringify(command.scenario), command.runId)
-    );
+  }
+  if (telemetry.length !== manifest.frameCount * manifest.telemetryStrideFloat32) {
+    throw new Error("buffer-layout-error: telemetry buffer length does not match frameCount");
+  }
+  return runResultSchema.parse({
+    runId,
+    scenarioHash: manifest.scenarioHash,
+    solverVersion: manifest.solverVersion,
+    frameLayout: {
+      version: FRAME_LAYOUT_VERSION,
+      strideFloat32: FRAME_STRIDE_FLOAT32,
+      fields: FRAME_LAYOUT_FIELDS.map((field) => ({ ...field }))
+    },
+    frameCount: manifest.frameCount,
+    outputHz: manifest.outputHz,
+    phases: manifest.phases,
+    metrics: manifest.metrics,
+    landing: manifest.landing,
+    telemetry: {
+      layoutVersion: TELEMETRY_LAYOUT_VERSION,
+      strideFloat32: manifest.telemetryStrideFloat32,
+      sampleCount: manifest.frameCount,
+      channels: TELEMETRY_CHANNELS.map((channel, offset) => ({ ...channel, offset }))
+    },
+    resultHash: manifest.resultHash
+  });
+};
 
-    const accepted = controller.acceptResultForRun(command.runId);
-    if (!accepted) {
-      return [progress];
-    }
+/** Copies wasm-owned rows into standalone buffers that can be transferred to the main thread. */
+const ownedBuffer = (values: Float32Array): ArrayBuffer => new Float32Array(values).buffer;
 
-    const result: WorkerEvent = {
-      protocolVersion: PROTOCOL_VERSION,
-      type: "result",
-      requestId: command.requestId,
-      runId: command.runId,
-      source: "solver",
-      manifest: {
-        runId: command.runId,
-        scenarioHash: solveOutput.scenarioHash,
-        solverVersion: solveOutput.solverVersion,
-        frameLayout: {
-          version: FRAME_LAYOUT_VERSION,
-          strideFloat32: FRAME_STRIDE_FLOAT32,
-          fields: FRAME_LAYOUT_FIELDS.map((field) => ({ ...field }))
-        },
-        frameCount:
-          solveOutput.frames?.length ??
-          Math.floor(frameBuffer.byteLength / (FRAME_STRIDE_FLOAT32 * 4)),
-        outputHz: solveOutput.outputHz,
-        phases: normalizePhases(solveOutput.phases),
-        metrics: solveOutput.metrics,
-        telemetry: {
-          layoutVersion: 1,
-          sampleCount: telemetryBuffer.byteLength / 4,
-          channels: [
-            {
-              name: "contactImpulse",
-              unit: "N*s",
-              offset: 0,
-              count: Math.floor(telemetryBuffer.byteLength / 16)
-            }
-          ]
-        },
-        resultHash: solveOutput.resultHash
-      },
-      frameBuffer,
-      telemetryBuffer
-    };
-
-    return [progress, result];
-  };
-
-  const handleSamplePose = (command: SamplePoseCommand): WorkerEvent[] => {
-    const sample = JSON.parse(
-      wasm.samplePoseJson(
-        JSON.stringify(command.poseClip),
-        command.s,
-        JSON.stringify(command.rider),
-        JSON.stringify(command.bike)
-      )
-    );
-
-    return [
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        type: "pose-sample",
-        requestId: command.requestId,
-        sample
-      }
-    ];
-  };
-
-  const handleSpeedWindow = (command: AnalyzeSpeedWindowCommand): WorkerEvent[] => {
-    const window = JSON.parse(wasm.analyzeSpeedWindowJson(JSON.stringify(command.scenario)));
-    return [
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        type: "speed-window",
-        requestId: command.requestId,
-        window
-      }
-    ];
-  };
-
-  const handleTerrain = (command: TerrainCommand): WorkerEvent[] => {
-    const profile = terrainProfileSchema.parse(
-      JSON.parse(wasm.terrainProfileJson(JSON.stringify(command.scenario), command.step))
-    );
-    return [
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        type: "terrain",
-        requestId: command.requestId,
-        profile
-      }
-    ];
-  };
-
-  const handleBikeGeometryInspection = (command: InspectBikeGeometryCommand): WorkerEvent[] => {
-    try {
-      const inspection = bikeGeometryInspectionSchema.parse(
-        JSON.parse(wasm.inspectBikeGeometry(JSON.stringify(command.bike)))
-      );
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "bike-geometry-inspected",
-          requestId: command.requestId,
-          inspection
+export const createWorkerRuntime = (wasm: WasmExports): WorkerRuntime => {
+  const handle = (command: WorkerCommand): WorkerEvent => {
+    switch (command.type) {
+      case "init": {
+        const versions = JSON.parse(wasm.versionsJson()) as CoreVersions;
+        const mismatch = checkCoreVersions(versions);
+        if (mismatch) {
+          const code: WorkerErrorCode =
+            versions.protocolVersion !== PROTOCOL_VERSION
+              ? "protocol-mismatch"
+              : "solver-version-mismatch";
+          return errorEvent(command, code, mismatch, false);
         }
-      ];
-    } catch (error) {
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "error",
-          requestId: command.requestId,
-          runId: null,
-          code: "invalid-bike-json",
-          message: error instanceof Error ? error.message : "Bike geometry inspection failed",
-          details: { operation: command.type },
-          recoverable: true
-        }
-      ];
-    }
-  };
-
-  const handleResolvePoseEdit = (command: ResolvePoseEditCommand): WorkerEvent[] => {
-    if (!wasm.resolvePoseEditJson) {
-      return [coreUnavailable(command)];
-    }
-    try {
-      const resolution = poseEditResolutionSchema.parse(
-        JSON.parse(
-          wasm.resolvePoseEditJson(
-            JSON.stringify(command.scenario),
-            command.keyIndex,
-            JSON.stringify(command.baselineTargets),
-            JSON.stringify(command.requestedTargets)
-          )
-        )
-      );
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "pose-edit-resolved",
-          requestId: command.requestId,
-          resolution
-        }
-      ];
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Pose edit resolution failed";
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "error",
-          requestId: command.requestId,
-          runId: null,
-          code: message.includes("invalid-baseline") ? "invalid-baseline" : "internal_error",
-          message,
-          details: { operation: command.type },
-          recoverable: true
-        }
-      ];
-    }
-  };
-
-  const handleValidateDesign = (command: ValidateDesignCommand): WorkerEvent[] => {
-    if (!wasm.validateDesignJson) {
-      return [coreUnavailable(command)];
-    }
-    try {
-      const validation = designValidationSchema.parse(
-        JSON.parse(wasm.validateDesignJson(JSON.stringify(command.scenario)))
-      );
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "design-validated",
-          requestId: command.requestId,
-          validation
-        }
-      ];
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Design validation failed";
-      return [
-        {
-          protocolVersion: PROTOCOL_VERSION,
-          type: "error",
-          requestId: command.requestId,
-          runId: null,
-          code: message.includes("unsupported-schema") ? "unsupported-schema" : "internal_error",
-          message,
-          details: { operation: command.type },
-          recoverable: false
-        }
-      ];
-    }
-  };
-
-  const handleCommand = (command: WorkerCommand): WorkerEvent[] => {
-    if (command.type === "init") {
-      const capabilities = JSON.parse(wasm.capabilitiesJson());
-      controller.markReady();
-      return [
-        {
+        const capabilities = JSON.parse(wasm.capabilitiesJson());
+        return {
           protocolVersion: PROTOCOL_VERSION,
           type: "ready",
           requestId: command.requestId,
-          solverVersion: command.expectedSolverVersion,
-          modelVersion: versionManifest.model,
-          capabilities: {
+          solverVersion: versions.solverVersion,
+          modelVersion: versions.modelVersion,
+          capabilities: solverCapabilityManifestSchema.parse({
             protocolVersion: PROTOCOL_VERSION,
-            solverVersion: command.expectedSolverVersion,
-            modelVersion: versionManifest.model,
+            solverVersion: versions.solverVersion,
+            modelVersion: versions.modelVersion,
             deterministic: true,
-            supportedScenarioPaths: (capabilities.supportedScenarioPaths ?? []) as string[],
-            supportedOutputs: (capabilities.supportedOutputs ?? []) as string[],
+            supportedScenarioPaths: capabilities.supportedScenarioPaths ?? [],
+            supportedOutputs: capabilities.supportedOutputs ?? [],
             ccd: Boolean(capabilities.ccd),
             contactImpulse: Boolean(capabilities.contactImpulse),
-            motorWork: Boolean(capabilities.motorWork),
-            jointTorque: Boolean(capabilities.jointTorque)
-          }
+            riderCoupling: Boolean(capabilities.riderCoupling),
+            riderInstinct: Boolean(capabilities.riderInstinct),
+            suspension: Boolean(capabilities.suspension)
+          })
+        };
+      }
+      case "solve": {
+        const result = wasm.solve(JSON.stringify(command.scenario), command.runId);
+        try {
+          const manifest = JSON.parse(result.manifest) as CoreSolveManifest;
+          const frames = result.frames;
+          const telemetry = result.telemetry;
+          return {
+            protocolVersion: PROTOCOL_VERSION,
+            type: "result",
+            requestId: command.requestId,
+            runId: command.runId,
+            source: "solver",
+            manifest: toRunResult(command.runId, manifest, frames, telemetry),
+            frameBuffer: ownedBuffer(frames),
+            telemetryBuffer: ownedBuffer(telemetry)
+          };
+        } finally {
+          result.free?.();
         }
-      ];
-    }
-
-    if (command.type === "solve") {
-      return handleSolve(command);
-    }
-
-    if (command.type === "cancel") {
-      controller.cancelRun(command.runId);
-      return [
-        {
+      }
+      case "cancel":
+        // Cancellation terminates the worker; a cancel that reaches the core finds nothing running.
+        return {
           protocolVersion: PROTOCOL_VERSION,
           type: "cancelled",
           requestId: command.requestId,
           runId: command.runId
-        }
-      ];
+        };
+      case "sample-pose":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "pose-sample",
+          requestId: command.requestId,
+          sample: poseSampleSchema.parse(
+            JSON.parse(
+              wasm.samplePoseJson(
+                JSON.stringify(command.poseClip),
+                command.s,
+                JSON.stringify(command.rider),
+                JSON.stringify(command.bike)
+              )
+            )
+          )
+        };
+      case "analyze-speed-window":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "speed-window",
+          requestId: command.requestId,
+          window: entrySpeedWindowSchema.parse(
+            JSON.parse(wasm.analyzeSpeedWindowJson(JSON.stringify(command.scenario)))
+          )
+        };
+      case "terrain":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "terrain",
+          requestId: command.requestId,
+          profile: terrainProfileSchema.parse(
+            JSON.parse(wasm.terrainProfileJson(JSON.stringify(command.scenario), command.step))
+          )
+        };
+      case "inspect-bike-geometry":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "bike-geometry-inspected",
+          requestId: command.requestId,
+          inspection: bikeGeometryInspectionSchema.parse(
+            JSON.parse(wasm.inspectBikeGeometry(JSON.stringify(command.bike)))
+          )
+        };
+      case "resolve-pose-edit":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "pose-edit-resolved",
+          requestId: command.requestId,
+          resolution: poseEditResolutionSchema.parse(
+            JSON.parse(
+              wasm.resolvePoseEditJson(
+                JSON.stringify(command.scenario),
+                command.keyIndex,
+                JSON.stringify(command.baselineTargets),
+                JSON.stringify(command.requestedTargets)
+              )
+            )
+          )
+        };
+      case "validate-design":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "design-validated",
+          requestId: command.requestId,
+          validation: designValidationSchema.parse(
+            JSON.parse(wasm.validateDesignJson(JSON.stringify(command.scenario)))
+          )
+        };
+      case "dispose":
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          type: "disposed",
+          requestId: command.requestId
+        };
     }
-
-    if (command.type === "sample-pose") {
-      return handleSamplePose(command);
-    }
-
-    if (command.type === "analyze-speed-window") {
-      return handleSpeedWindow(command);
-    }
-
-    if (command.type === "terrain") {
-      return handleTerrain(command);
-    }
-
-    if (command.type === "inspect-bike-geometry") {
-      return handleBikeGeometryInspection(command);
-    }
-
-    if (command.type === "resolve-pose-edit") {
-      return handleResolvePoseEdit(command);
-    }
-
-    if (command.type === "validate-design") {
-      return handleValidateDesign(command);
-    }
-
-    controller.dispose();
-    return [
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        type: "disposed",
-        requestId: command.requestId
-      }
-    ];
   };
 
   return {
-    handleCommand
+    handleCommand: (command) => {
+      try {
+        return [handle(command)];
+      } catch (error) {
+        if (isCoreCrash(error)) {
+          return [errorEvent(command, "core-crashed", coreErrorMessage(error), false)];
+        }
+        const message = coreErrorMessage(error);
+        const code = message.startsWith("buffer-layout-error")
+          ? "buffer-layout-error"
+          : classifyCoreError(message);
+        return [errorEvent(command, code, message, code !== "buffer-layout-error")];
+      }
+    }
   };
 };

@@ -1,11 +1,12 @@
 import type {
   BaselineSelection,
+  LandingOutcome,
   Metric,
   RunArtifact,
   RunResult
 } from "../../../../../packages/schema/src/index";
 
-export type MetricGroupId = "takeoff" | "air" | "landing" | "energy" | "pending-core";
+export type MetricGroupId = "takeoff" | "air" | "landing" | "rider" | "energy";
 
 export type MetricWithDelta = {
   id: string;
@@ -14,14 +15,39 @@ export type MetricWithDelta = {
   delta: number | null;
 };
 
-const groupMetricIds: Record<Exclude<MetricGroupId, "pending-core">, string[]> = {
-  takeoff: ["takeoffSpeed"],
-  air: ["airtime", "maxHeight"],
-  landing: ["landingImpulse"],
-  energy: ["motorWork"]
+/** Display order and wording for the solver's metrics, grouped by jump phase. */
+const metricGroups: Record<MetricGroupId, Array<[id: string, label: string]>> = {
+  takeoff: [
+    ["takeoffSpeed", "Speed"],
+    ["takeoffAngle", "Launch angle"]
+  ],
+  air: [
+    ["airtime", "Airtime"],
+    ["jumpDistance", "Distance"],
+    ["maxHeightAboveLip", "Peak above lip"],
+    ["airRotation", "Bike rotation"]
+  ],
+  landing: [
+    ["landingX", "Touchdown x"],
+    ["sweetSpotOffset", "From sweet spot"],
+    ["landingPitchError", "Pitch vs slope"],
+    ["landingImpulse", "Impulse (0.2 s)"],
+    ["landingForce", "Average force"],
+    ["peakNormalForce", "Peak force"]
+  ],
+  rider: [
+    ["actuatorWorkPositive", "Work in"],
+    ["actuatorWorkNegative", "Work absorbed"],
+    ["trackingError", "Pose tracking"],
+    ["instinctPeakAngle", "Instinct lean"],
+    ["instinctPeakOffset", "Instinct shift"],
+    ["instinctSaturatedTime", "Instinct maxed"]
+  ],
+  energy: [
+    ["energyResidual", "Balance error"],
+    ["impactEnergyLoss", "Lost on impact"]
+  ]
 };
-
-const toLabel = (id: string): string => id.replace(/([A-Z])/g, " $1").trim();
 
 const metricDelta = (
   metric: Metric,
@@ -46,33 +72,80 @@ export const getMetricGroup = (
   if (!result) {
     return [];
   }
-
   const baselineMetrics = baseline?.manifest.metrics ?? {};
-
-  if (group === "pending-core") {
-    return Object.entries(result.metrics)
-      .filter(([, metric]) => metric.source === "pending-core")
-      .map(([id, metric]) => ({
+  return metricGroups[group].flatMap(([id, label]) => {
+    const metric = result.metrics[id];
+    if (!metric) return [];
+    return [
+      {
         id,
-        label: toLabel(id),
-        metric,
-        delta: null
-      }));
-  }
-
-  const metricIds = groupMetricIds[group];
-  return metricIds
-    .map((id) => {
-      const metric = result.metrics[id];
-      if (!metric) {
-        return null;
-      }
-      return {
-        id,
-        label: toLabel(id),
+        label,
         metric,
         delta: metricDelta(metric, baselineMetrics[id], baselineSelection.compatibility)
-      };
-    })
-    .filter((entry): entry is MetricWithDelta => entry !== null);
+      }
+    ];
+  });
+};
+
+export type OutcomeTone = "clean" | "caution" | "crash" | "none";
+
+export type OutcomeSummary = {
+  tone: OutcomeTone;
+  title: string;
+  detail: string;
+  reasons: string[];
+};
+
+const regionTitle: Record<NonNullable<LandingOutcome["region"]>, string> = {
+  case: "Cased",
+  early: "Early on the landing",
+  "sweet-spot": "Sweet spot",
+  late: "Late on the landing",
+  overshoot: "Overshot"
+};
+
+const statusTitle: Record<Exclude<LandingOutcome["status"], "landed">, string> = {
+  "no-flight": "Never left the ground",
+  stalled: "Ran out of speed",
+  "airborne-at-end": "Still airborne at the end"
+};
+
+/** One-line verdict for a run: where it landed, how it landed, and whether the rider crashed. */
+export const summarizeLanding = (landing: LandingOutcome): OutcomeSummary => {
+  if (landing.status !== "landed") {
+    return {
+      tone: landing.severity === "crash" ? "crash" : "none",
+      title: statusTitle[landing.status],
+      detail: landing.severity === "crash" ? "Crashed" : "",
+      reasons: landing.reasons
+    };
+  }
+  const attitude =
+    landing.attitude === "balanced"
+      ? "Balanced"
+      : landing.attitude === "nose-heavy"
+        ? "Nose-heavy"
+        : landing.attitude === "tail-heavy"
+          ? "Tail-heavy"
+          : "Attitude unknown";
+  const firstContact =
+    landing.firstContact === "both"
+      ? "both wheels together"
+      : `${landing.firstContact ?? "rear"} wheel first`;
+  const clean =
+    landing.severity === "clean" &&
+    landing.attitude === "balanced" &&
+    (landing.region === "sweet-spot" || landing.region === "early" || landing.region === "late");
+  return {
+    tone: landing.severity === "crash" ? "crash" : clean ? "clean" : "caution",
+    title: landing.severity === "crash" ? "Crashed" : regionTitle[landing.region ?? "late"],
+    detail: [
+      landing.severity === "crash" ? regionTitle[landing.region ?? "late"] : null,
+      attitude,
+      firstContact
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    reasons: landing.reasons
+  };
 };

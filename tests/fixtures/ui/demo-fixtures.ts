@@ -114,7 +114,16 @@ const baseRunResult: RunResult = runResultSchema.parse({
   metrics: {
     airtime: { value: 0, unit: "s", source: "measured", reason: null }
   },
-  telemetry: { layoutVersion: 1, sampleCount: 1, channels: [] },
+  landing: {
+    status: "no-flight",
+    region: null,
+    attitude: null,
+    firstContact: null,
+    severity: "clean",
+    crashTime: null,
+    reasons: ["the bike never left the ground"]
+  },
+  telemetry: { layoutVersion: 2, strideFloat32: 4, sampleCount: 1, channels: [] },
   resultHash: "b".repeat(64)
 });
 

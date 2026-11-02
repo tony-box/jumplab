@@ -81,7 +81,8 @@ export type AppState = {
     clearScenario: () => void;
     beginSolve: (runId: string) => void;
     reportProgress: (runId: string, fraction: number, label: string) => void;
-    commitRunResult: (result: RunResult) => void;
+    /** `stale` marks a result whose scenario was edited while the solve was running. */
+    commitRunResult: (result: RunResult, options?: { stale?: boolean }) => void;
     setBaselineRun: (runId: string | null) => void;
     failSolve: (message: string) => void;
     cancelSolve: () => void;
@@ -254,7 +255,7 @@ export const useAppStore = create<AppState>()((set) => ({
           }
         };
       }),
-    commitRunResult: (result) =>
+    commitRunResult: (result, options) =>
       set((state) => {
         if (state.solver.activeRunId !== result.runId) {
           return state;
@@ -270,8 +271,8 @@ export const useAppStore = create<AppState>()((set) => ({
           scenario: {
             ...state.scenario,
             displayedRunId: result.runId,
-            resultState: "current",
-            dirty: false
+            resultState: options?.stale ? "stale" : "current",
+            dirty: Boolean(options?.stale)
           },
           solver: {
             lifecycle: "ready",

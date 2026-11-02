@@ -9,7 +9,7 @@ const scenario = scenarioSchema.parse(
   JSON.parse(readFileSync(resolve("tests/fixtures/scenarios/standard-v1.json"), "utf8"))
 );
 const result = runResultSchema.parse(
-  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v1.json"), "utf8"))
+  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v2.json"), "utf8"))
 );
 
 describe("application store", () => {

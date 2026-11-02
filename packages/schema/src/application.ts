@@ -19,8 +19,9 @@ export const solverCapabilityManifestSchema = z
     supportedOutputs: z.array(z.string().regex(/^[A-Za-z0-9_.-]+$/)),
     ccd: z.boolean(),
     contactImpulse: z.boolean(),
-    motorWork: z.boolean(),
-    jointTorque: z.boolean()
+    riderCoupling: z.boolean(),
+    riderInstinct: z.boolean(),
+    suspension: z.boolean()
   })
   .strict()
   .superRefine((value, context) => {

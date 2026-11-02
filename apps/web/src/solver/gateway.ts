@@ -1,16 +1,8 @@
 import {
   PROTOCOL_VERSION,
-  bikeGeometryInspectedEventSchema,
-  designValidatedEventSchema,
   hashScenario,
-  poseEditResolvedEventSchema,
-  readyEventSchema,
-  type BikeSpec,
-  type DesignValidation,
+  workerEventSchema,
   type EntrySpeedWindowInfo,
-  type PoseEditResolution,
-  type PoseSample,
-  type PoseTargets,
   type Scenario,
   type SolverCapabilityManifest,
   type TerrainProfile,
@@ -18,79 +10,135 @@ import {
   type WorkerErrorCode,
   type WorkerEvent
 } from "../../../../packages/schema/src/index";
-import initPhysics, * as physicsModule from "../../../../crates/physics-core/pkg/physics_core.js";
 
 import type { SolverGateway } from "../app/services";
 import { versionManifest } from "../app/version-manifest";
-import { createPhysicsController } from "./controller";
-import { createWorkerRuntime, type WasmExports } from "./physics.worker";
 import { assembleRunArtifact } from "../features/workbench/solve-run";
+import type { WorkerRuntime } from "./physics.worker";
 
-type Runtime = { handleCommand: (command: WorkerCommand) => WorkerEvent[] };
+export class SolverGatewayError extends Error {
+  constructor(
+    readonly code: WorkerErrorCode,
+    message: string,
+    readonly recoverable: boolean
+  ) {
+    super(message);
+    this.name = "SolverGatewayError";
+  }
+}
 
-type RuntimeFactory = () => Promise<Runtime>;
+/** Delivers one command and resolves with its terminal event. */
+export type SolverTransport = {
+  request: (command: WorkerCommand, timeoutMs: number) => Promise<WorkerEvent>;
+  /** Stops the core immediately, rejecting outstanding requests with `reason`. */
+  terminate: (reason: WorkerErrorCode) => void;
+};
 
-const createDefaultRuntimeFactory = (): RuntimeFactory => {
-  let runtimePromise: Promise<Runtime> | null = null;
+/** Per-operation budgets; solves are the slowest single calls, speed windows run many solves. */
+const TIMEOUTS_MS = {
+  default: 15_000,
+  solve: 60_000,
+  "analyze-speed-window": 180_000
+} as const;
+const TERRAIN_CACHE_LIMIT = 32;
 
-  return () => {
-    if (runtimePromise) {
-      return runtimePromise;
+const timeoutFor = (command: WorkerCommand): number =>
+  command.type === "solve" || command.type === "analyze-speed-window"
+    ? TIMEOUTS_MS[command.type]
+    : TIMEOUTS_MS.default;
+
+type Pending = {
+  resolve: (event: WorkerEvent) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+/** Runs the physics core in a dedicated module worker, respawning it after cancel or crash. */
+export const createWorkerTransport = (
+  spawn: () => Worker = () =>
+    new Worker(new URL("./physics-worker-entry.ts", import.meta.url), { type: "module" })
+): SolverTransport => {
+  let worker: Worker | null = null;
+  const pending = new Map<string, Pending>();
+
+  const rejectAll = (code: WorkerErrorCode, message: string, recoverable: boolean): void => {
+    for (const [requestId, entry] of pending) {
+      clearTimeout(entry.timer);
+      entry.reject(new SolverGatewayError(code, message, recoverable));
+      pending.delete(requestId);
     }
+  };
 
-    runtimePromise = (async () => {
-      await initPhysics();
-      const terrainProfileJson = Reflect.get(physicsModule, "terrainProfileJson");
-      const inspectBikeGeometry = Reflect.get(physicsModule, "inspectBikeGeometry");
-      const resolvePoseEditJson = Reflect.get(physicsModule, "resolvePoseEditJson");
-      const validateDesignJson = Reflect.get(physicsModule, "validateDesignJson");
-      const wasm: WasmExports = {
-        solveScenarioJson: physicsModule.solveScenarioJson,
-        solveFrameBuffer: physicsModule.solveFrameBuffer,
-        solveTelemetryBuffer: physicsModule.solveTelemetryBuffer,
-        samplePoseJson: physicsModule.samplePoseJson,
-        analyzeSpeedWindowJson: physicsModule.analyzeSpeedWindowJson,
-        terrainProfileJson: (scenarioJson, step) => {
-          if (typeof terrainProfileJson !== "function") {
-            throw new Error("terrain_profile_unavailable");
-          }
-          return terrainProfileJson(scenarioJson, step) as string;
-        },
-        inspectBikeGeometry: (bikeJson) => {
-          if (typeof inspectBikeGeometry !== "function") {
-            throw new Error("bike_geometry_inspection_unavailable");
-          }
-          return inspectBikeGeometry(bikeJson) as string;
-        },
-        resolvePoseEditJson: (
-          scenarioJson,
-          keyIndex,
-          baselineTargetsJson,
-          requestedTargetsJson
-        ) => {
-          if (typeof resolvePoseEditJson !== "function") {
-            throw new Error("pose_edit_resolution_unavailable");
-          }
-          return resolvePoseEditJson(
-            scenarioJson,
-            keyIndex,
-            baselineTargetsJson,
-            requestedTargetsJson
-          ) as string;
-        },
-        validateDesignJson: (scenarioJson) => {
-          if (typeof validateDesignJson !== "function") {
-            throw new Error("design_validation_unavailable");
-          }
-          return validateDesignJson(scenarioJson) as string;
-        },
-        capabilitiesJson: physicsModule.capabilitiesJson
-      };
+  const terminate: SolverTransport["terminate"] = (reason) => {
+    worker?.terminate();
+    worker = null;
+    rejectAll(reason, `Physics core stopped: ${reason}`, true);
+  };
 
-      return createWorkerRuntime(wasm, createPhysicsController());
-    })();
+  const ensureWorker = (): Worker => {
+    if (worker) return worker;
+    const created = spawn();
+    created.onmessage = (message: MessageEvent<unknown>) => {
+      const parsed = workerEventSchema.safeParse(message.data);
+      const requestId = (message.data as { requestId?: unknown } | null)?.requestId;
+      const entry = typeof requestId === "string" ? pending.get(requestId) : undefined;
+      if (!entry || typeof requestId !== "string") return;
+      pending.delete(requestId);
+      clearTimeout(entry.timer);
+      if (parsed.success) {
+        entry.resolve(parsed.data);
+      } else {
+        entry.reject(
+          new SolverGatewayError(
+            "buffer-layout-error",
+            "Physics core sent a malformed event",
+            false
+          )
+        );
+      }
+    };
+    created.onerror = (event) => {
+      event.preventDefault();
+      created.terminate();
+      if (worker === created) worker = null;
+      rejectAll("core-crashed", event.message || "Physics worker crashed", true);
+    };
+    worker = created;
+    return created;
+  };
 
-    return runtimePromise;
+  const request: SolverTransport["request"] = (command, timeoutMs) =>
+    new Promise<WorkerEvent>((resolve, reject) => {
+      const target = ensureWorker();
+      const timer = setTimeout(() => {
+        pending.delete(command.requestId);
+        // A stuck core cannot be interrupted any other way.
+        terminate("timeout");
+        reject(new SolverGatewayError("timeout", `${command.type} timed out`, true));
+      }, timeoutMs);
+      pending.set(command.requestId, { resolve, reject, timer });
+      target.postMessage(command);
+    });
+
+  return { request, terminate };
+};
+
+/** Runs a worker runtime on the calling thread: used by tests and the fixture provider. */
+export const createInProcessTransport = (
+  runtimeFactory: () => Promise<WorkerRuntime>
+): SolverTransport => {
+  let runtime: Promise<WorkerRuntime> | null = null;
+  return {
+    request: async (command) => {
+      runtime ??= runtimeFactory();
+      const events = (await runtime).handleCommand(command);
+      const terminal = events.filter((event) => event.type !== "progress").at(-1);
+      if (!terminal) throw new SolverGatewayError("internal-error", "No event returned", true);
+      return terminal;
+    },
+    terminate: () => {
+      runtime = null;
+    }
   };
 };
 
@@ -105,262 +153,158 @@ const createRequest = <TType extends WorkerCommand["type"]>(
     ...(payload as object)
   }) as Extract<WorkerCommand, { type: TType }>;
 
-export class SolverGatewayError extends Error {
-  constructor(
-    readonly code: WorkerErrorCode,
-    message: string,
-    readonly recoverable: boolean
-  ) {
-    super(message);
-    this.name = "SolverGatewayError";
+const expectEvent = <TType extends WorkerEvent["type"]>(
+  event: WorkerEvent,
+  type: TType
+): Extract<WorkerEvent, { type: TType }> => {
+  if (event.type === "error") {
+    throw new SolverGatewayError(event.code, event.message, event.recoverable);
   }
-}
-
-const correlatedEvents = (events: WorkerEvent[], requestId: string): WorkerEvent[] =>
-  events.filter((event) => event.requestId === requestId);
-
-const throwCorrelatedError = (events: WorkerEvent[]): void => {
-  const error = events.find((event) => event.type === "error");
-  if (error?.type === "error") {
-    throw new SolverGatewayError(error.code, error.message, error.recoverable);
+  if (event.type !== type) {
+    throw new SolverGatewayError(
+      "internal-error",
+      `Expected ${type}, received ${event.type}`,
+      true
+    );
   }
+  return event as Extract<WorkerEvent, { type: TType }>;
 };
 
+const defaultTransport = (): SolverTransport => {
+  if (typeof Worker === "undefined") {
+    throw new Error("Web Workers are required to run the physics core");
+  }
+  return createWorkerTransport();
+};
+
+/**
+ * `source` may be a transport or, for tests and fixtures, a factory for an in-process runtime.
+ * By default the core runs in a dedicated Web Worker.
+ */
 export const createSolverGateway = (
-  runtimeFactory: RuntimeFactory = createDefaultRuntimeFactory()
+  source?: SolverTransport | (() => Promise<WorkerRuntime>)
 ): SolverGateway => {
+  let transport: SolverTransport | null =
+    typeof source === "function" ? createInProcessTransport(source) : (source ?? null);
   let manifest: SolverCapabilityManifest | null = null;
   let disposed = false;
-  const cancelledRunIds = new Set<string>();
+  let activeRunId: string | null = null;
   const terrainCache = new Map<string, Promise<TerrainProfile>>();
 
-  const withRuntime = async <T>(execute: (runtime: Runtime) => T): Promise<T> => {
-    if (disposed) {
-      throw new Error("solver_disposed");
-    }
-    const runtime = await runtimeFactory();
-    return execute(runtime);
+  const send = async <TType extends WorkerEvent["type"]>(
+    command: WorkerCommand,
+    expected: TType
+  ): Promise<Extract<WorkerEvent, { type: TType }>> => {
+    if (disposed) throw new Error("solver_disposed");
+    transport ??= defaultTransport();
+    return expectEvent(await transport.request(command, timeoutFor(command)), expected);
   };
 
-  const initialize: SolverGateway["initialize"] = async (appVersion, expectedSolverVersion) =>
-    withRuntime((runtime) => {
-      if (manifest) {
-        return manifest;
+  const initialize: SolverGateway["initialize"] = async (appVersion, expectedSolverVersion) => {
+    if (manifest) return manifest;
+    const ready = await send(createRequest("init", { appVersion, expectedSolverVersion }), "ready");
+    manifest = ready.capabilities;
+    return manifest;
+  };
+
+  const solve: SolverGateway["solve"] = async (runId, scenario) => {
+    await initialize(versionManifest.app, versionManifest.solver);
+    activeRunId = runId;
+    try {
+      const result = await send(createRequest("solve", { runId, scenario }), "result");
+      if (result.runId !== runId) {
+        throw new SolverGatewayError("internal-error", "Result belongs to another run", true);
       }
-
-      const events = runtime.handleCommand(
-        createRequest("init", {
-          appVersion,
-          expectedSolverVersion
-        })
-      );
-      const ready = events.find((event) => event.type === "ready");
-      if (!ready) {
-        throw new Error("core_init_failed");
-      }
-      manifest = readyEventSchema.parse(ready).capabilities;
-      return manifest;
-    });
-
-  const solve: SolverGateway["solve"] = async (runId, scenario) =>
-    withRuntime(async (runtime) => {
-      if (!manifest) {
-        await initialize(versionManifest.app, versionManifest.solver);
-      }
-
-      const events = runtime.handleCommand(
-        createRequest("solve", {
-          runId,
-          scenario
-        })
-      );
-
-      let highestProgress = 0;
-      let resultEvent: Extract<WorkerEvent, { type: "result" }> | null = null;
-
-      for (const event of events) {
-        if (event.type === "progress") {
-          highestProgress = Math.max(highestProgress, event.fraction);
-          continue;
-        }
-
-        if (event.type === "error") {
-          throw new SolverGatewayError(event.code, event.message, event.recoverable);
-        }
-
-        if (event.type === "result") {
-          if (cancelledRunIds.has(runId)) {
-            throw new Error("solve_cancelled");
-          }
-          if (event.runId !== runId) {
-            continue;
-          }
-          resultEvent = event;
-        }
-      }
-
-      if (!resultEvent) {
-        throw new Error(highestProgress > 0 ? "late_result_rejected" : "result_missing");
-      }
-
-      return assembleRunArtifact({
+      return await assembleRunArtifact({
         runId,
         scenario,
-        manifest: resultEvent.manifest,
-        source: resultEvent.source,
-        frameBuffer: resultEvent.frameBuffer,
-        telemetryBuffer: resultEvent.telemetryBuffer
+        manifest: result.manifest,
+        source: result.source,
+        frameBuffer: result.frameBuffer,
+        telemetryBuffer: result.telemetryBuffer
       });
-    });
-
-  const cancel: SolverGateway["cancel"] = async (runId) =>
-    withRuntime((runtime) => {
-      cancelledRunIds.add(runId);
-      runtime.handleCommand(
-        createRequest("cancel", {
-          runId
-        })
-      );
-    });
-
-  const inspectBikeGeometry = async (bike: BikeSpec) =>
-    withRuntime((runtime) => {
-      const request = createRequest("inspect-bike-geometry", { bike });
-      const events = correlatedEvents(runtime.handleCommand(request), request.requestId);
-      throwCorrelatedError(events);
-      const inspected = events.find((event) => event.type === "bike-geometry-inspected");
-      if (!inspected) {
-        throw new Error("bike_geometry_inspection_unavailable");
-      }
-      return bikeGeometryInspectedEventSchema.parse(inspected).inspection;
-    });
-
-  const resolvePoseEdit = async (
-    scenario: Scenario,
-    keyIndex: number,
-    baselineTargets: PoseTargets,
-    requestedTargets: PoseTargets
-  ): Promise<PoseEditResolution> =>
-    withRuntime((runtime) => {
-      const request = createRequest("resolve-pose-edit", {
-        scenario,
-        keyIndex,
-        baselineTargets,
-        requestedTargets
-      });
-      const events = correlatedEvents(runtime.handleCommand(request), request.requestId);
-      throwCorrelatedError(events);
-      const resolved = events.find((event) => event.type === "pose-edit-resolved");
-      if (!resolved) {
-        throw new Error("pose_edit_resolution_unavailable");
-      }
-      return poseEditResolvedEventSchema.parse(resolved).resolution;
-    });
-
-  const validateDesign = async (scenario: Scenario): Promise<DesignValidation> =>
-    withRuntime((runtime) => {
-      const request = createRequest("validate-design", { scenario });
-      const events = correlatedEvents(runtime.handleCommand(request), request.requestId);
-      throwCorrelatedError(events);
-      const validated = events.find((event) => event.type === "design-validated");
-      if (!validated) {
-        throw new Error("design_validation_unavailable");
-      }
-      return designValidatedEventSchema.parse(validated).validation;
-    });
-
-  const samplePose: SolverGateway["samplePose"] = async (
-    scenario: Scenario,
-    s: number
-  ): Promise<PoseSample> =>
-    withRuntime((runtime) => {
-      const events = runtime.handleCommand(
-        createRequest("sample-pose", {
-          poseClip: scenario.poseClip,
-          s,
-          rider: scenario.rider,
-          bike: scenario.bike
-        })
-      );
-      const sample = events.find((event) => event.type === "pose-sample");
-      if (!sample) {
-        throw new Error("pose_sample_unavailable");
-      }
-      return sample.sample;
-    });
-
-  const analyzeSpeedWindow: SolverGateway["analyzeSpeedWindow"] = async (
-    scenario
-  ): Promise<EntrySpeedWindowInfo> =>
-    withRuntime((runtime) => {
-      const events = runtime.handleCommand(
-        createRequest("analyze-speed-window", {
-          scenario
-        })
-      );
-      const window = events.find((event) => event.type === "speed-window");
-      if (!window) {
-        throw new Error("speed_window_unavailable");
-      }
-      return {
-        minimum: window.window.minimum,
-        maximum: window.window.maximum,
-        status: window.window.status,
-        reason: window.window.reason
-      };
-    });
-
-  const terrain: SolverGateway["terrain"] = async (scenario, step) => {
-    if (!Number.isFinite(step)) {
-      throw new Error("terrain_step_invalid");
+    } finally {
+      if (activeRunId === runId) activeRunId = null;
     }
-
-    return withRuntime(async (runtime) => {
-      const cacheKey = `${await hashScenario(scenario)}:${String(step)}`;
-      let pendingProfile = terrainCache.get(cacheKey);
-
-      if (!pendingProfile) {
-        pendingProfile = Promise.resolve().then(() => {
-          const events = runtime.handleCommand(
-            createRequest("terrain", {
-              scenario,
-              step
-            })
-          );
-          const error = events.find((event) => event.type === "error");
-          if (error) {
-            throw new Error(error.message);
-          }
-          const terrainEvent = events.find((event) => event.type === "terrain");
-          if (!terrainEvent) {
-            throw new Error("terrain_profile_unavailable");
-          }
-          return terrainEvent.profile;
-        });
-        terrainCache.set(cacheKey, pendingProfile);
-        pendingProfile.catch(() => terrainCache.delete(cacheKey));
-      }
-
-      return structuredClone(await pendingProfile);
-    });
   };
 
-  const dispose: SolverGateway["dispose"] = async () =>
-    withRuntime((runtime) => {
-      disposed = true;
-      runtime.handleCommand(createRequest("dispose", {}));
-    });
+  const cancel: SolverGateway["cancel"] = async (runId) => {
+    if (activeRunId !== runId) return;
+    activeRunId = null;
+    transport?.terminate("cancelled");
+  };
+
+  const terrain: SolverGateway["terrain"] = async (scenario, step) => {
+    if (!Number.isFinite(step)) throw new Error("terrain_step_invalid");
+    const cacheKey = `${await hashScenario(scenario)}:${String(step)}`;
+    let profile = terrainCache.get(cacheKey);
+    if (profile) {
+      terrainCache.delete(cacheKey);
+    } else {
+      profile = send(createRequest("terrain", { scenario, step }), "terrain").then(
+        (event) => event.profile
+      );
+      profile.catch(() => terrainCache.delete(cacheKey));
+    }
+    terrainCache.set(cacheKey, profile);
+    while (terrainCache.size > TERRAIN_CACHE_LIMIT) {
+      const oldest = terrainCache.keys().next().value;
+      if (oldest === undefined) break;
+      terrainCache.delete(oldest);
+    }
+    return structuredClone(await profile);
+  };
 
   return {
     initialize,
     solve,
     cancel,
-    inspectBikeGeometry,
-    resolvePoseEdit,
-    validateDesign,
-    samplePose,
-    analyzeSpeedWindow,
+    inspectBikeGeometry: async (bike) =>
+      (await send(createRequest("inspect-bike-geometry", { bike }), "bike-geometry-inspected"))
+        .inspection,
+    resolvePoseEdit: async (scenario, keyIndex, baselineTargets, requestedTargets) =>
+      (
+        await send(
+          createRequest("resolve-pose-edit", {
+            scenario,
+            keyIndex,
+            baselineTargets,
+            requestedTargets
+          }),
+          "pose-edit-resolved"
+        )
+      ).resolution,
+    validateDesign: async (scenario) =>
+      (await send(createRequest("validate-design", { scenario }), "design-validated")).validation,
+    samplePose: async (scenario: Scenario, s: number) =>
+      (
+        await send(
+          createRequest("sample-pose", {
+            poseClip: scenario.poseClip,
+            s,
+            rider: scenario.rider,
+            bike: scenario.bike
+          }),
+          "pose-sample"
+        )
+      ).sample,
+    analyzeSpeedWindow: async (scenario): Promise<EntrySpeedWindowInfo> => {
+      const { window } = await send(
+        createRequest("analyze-speed-window", { scenario }),
+        "speed-window"
+      );
+      return {
+        minimum: window.minimum,
+        maximum: window.maximum,
+        status: window.status,
+        reason: window.reason
+      };
+    },
     terrain,
-    dispose
+    dispose: async () => {
+      disposed = true;
+      transport?.terminate("cancelled");
+      transport = null;
+    }
   };
 };

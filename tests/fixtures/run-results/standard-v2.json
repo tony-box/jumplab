@@ -1,0 +1,501 @@
+{
+  "runId": "8a4cf0f6-4b6a-4c5d-9a49-1f6a2c3e7d10",
+  "scenarioHash": "c49016ebd3783decc3cd1d2176f13e33ebbc073ef5ef85a8f0096f3636baac81",
+  "solverVersion": "rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2",
+  "frameLayout": {
+    "version": 3,
+    "strideFloat32": 57,
+    "fields": [
+      {
+        "name": "t",
+        "offset": 0,
+        "length": 1
+      },
+      {
+        "name": "x",
+        "offset": 1,
+        "length": 1
+      },
+      {
+        "name": "y",
+        "offset": 2,
+        "length": 1
+      },
+      {
+        "name": "pitch",
+        "offset": 3,
+        "length": 1
+      },
+      {
+        "name": "vx",
+        "offset": 4,
+        "length": 1
+      },
+      {
+        "name": "vy",
+        "offset": 5,
+        "length": 1
+      },
+      {
+        "name": "airborne",
+        "offset": 6,
+        "length": 1
+      },
+      {
+        "name": "contactImpulse",
+        "offset": 7,
+        "length": 1
+      },
+      {
+        "name": "shoulder",
+        "offset": 8,
+        "length": 1
+      },
+      {
+        "name": "elbow",
+        "offset": 9,
+        "length": 1
+      },
+      {
+        "name": "knee",
+        "offset": 10,
+        "length": 1
+      },
+      {
+        "name": "hip",
+        "offset": 11,
+        "length": 1
+      },
+      {
+        "name": "spine",
+        "offset": 12,
+        "length": 1
+      },
+      {
+        "name": "pedalContactX",
+        "offset": 13,
+        "length": 1
+      },
+      {
+        "name": "pedalContactY",
+        "offset": 14,
+        "length": 1
+      },
+      {
+        "name": "ankleX",
+        "offset": 15,
+        "length": 1
+      },
+      {
+        "name": "ankleY",
+        "offset": 16,
+        "length": 1
+      },
+      {
+        "name": "kneeX",
+        "offset": 17,
+        "length": 1
+      },
+      {
+        "name": "kneeY",
+        "offset": 18,
+        "length": 1
+      },
+      {
+        "name": "hipX",
+        "offset": 19,
+        "length": 1
+      },
+      {
+        "name": "hipY",
+        "offset": 20,
+        "length": 1
+      },
+      {
+        "name": "shoulderX",
+        "offset": 21,
+        "length": 1
+      },
+      {
+        "name": "shoulderY",
+        "offset": 22,
+        "length": 1
+      },
+      {
+        "name": "elbowX",
+        "offset": 23,
+        "length": 1
+      },
+      {
+        "name": "elbowY",
+        "offset": 24,
+        "length": 1
+      },
+      {
+        "name": "handX",
+        "offset": 25,
+        "length": 1
+      },
+      {
+        "name": "handY",
+        "offset": 26,
+        "length": 1
+      },
+      {
+        "name": "handlebarContactX",
+        "offset": 27,
+        "length": 1
+      },
+      {
+        "name": "handlebarContactY",
+        "offset": 28,
+        "length": 1
+      },
+      {
+        "name": "headX",
+        "offset": 29,
+        "length": 1
+      },
+      {
+        "name": "headY",
+        "offset": 30,
+        "length": 1
+      },
+      {
+        "name": "groundedRear",
+        "offset": 31,
+        "length": 1
+      },
+      {
+        "name": "groundedFront",
+        "offset": 32,
+        "length": 1
+      },
+      {
+        "name": "normalForceRear",
+        "offset": 33,
+        "length": 1
+      },
+      {
+        "name": "normalForceFront",
+        "offset": 34,
+        "length": 1
+      },
+      {
+        "name": "minClearance",
+        "offset": 35,
+        "length": 1
+      },
+      {
+        "name": "pitchRate",
+        "offset": 36,
+        "length": 1
+      },
+      {
+        "name": "s",
+        "offset": 37,
+        "length": 1
+      },
+      {
+        "name": "riderX",
+        "offset": 38,
+        "length": 1
+      },
+      {
+        "name": "riderY",
+        "offset": 39,
+        "length": 1
+      },
+      {
+        "name": "riderAngle",
+        "offset": 40,
+        "length": 1
+      },
+      {
+        "name": "riderOffsetX",
+        "offset": 41,
+        "length": 1
+      },
+      {
+        "name": "riderOffsetY",
+        "offset": 42,
+        "length": 1
+      },
+      {
+        "name": "riderOffsetAngle",
+        "offset": 43,
+        "length": 1
+      },
+      {
+        "name": "targetOffsetX",
+        "offset": 44,
+        "length": 1
+      },
+      {
+        "name": "targetOffsetY",
+        "offset": 45,
+        "length": 1
+      },
+      {
+        "name": "targetOffsetAngle",
+        "offset": 46,
+        "length": 1
+      },
+      {
+        "name": "instinctOffset",
+        "offset": 47,
+        "length": 1
+      },
+      {
+        "name": "instinctAngle",
+        "offset": 48,
+        "length": 1
+      },
+      {
+        "name": "instinctSaturated",
+        "offset": 49,
+        "length": 1
+      },
+      {
+        "name": "actuatorForceX",
+        "offset": 50,
+        "length": 1
+      },
+      {
+        "name": "actuatorForceY",
+        "offset": 51,
+        "length": 1
+      },
+      {
+        "name": "actuatorTorque",
+        "offset": 52,
+        "length": 1
+      },
+      {
+        "name": "actuatorSaturated",
+        "offset": 53,
+        "length": 1
+      },
+      {
+        "name": "workspaceLimited",
+        "offset": 54,
+        "length": 1
+      },
+      {
+        "name": "trackingError",
+        "offset": 55,
+        "length": 1
+      },
+      {
+        "name": "crashed",
+        "offset": 56,
+        "length": 1
+      }
+    ]
+  },
+  "frameCount": 293,
+  "outputHz": 60,
+  "phases": [
+    {
+      "name": "approach",
+      "startFrame": 0,
+      "endFrame": 26
+    },
+    {
+      "name": "transition",
+      "startFrame": 27,
+      "endFrame": 46
+    },
+    {
+      "name": "takeoff",
+      "startFrame": 47,
+      "endFrame": 47
+    },
+    {
+      "name": "flight",
+      "startFrame": 48,
+      "endFrame": 111
+    },
+    {
+      "name": "landing",
+      "startFrame": 112,
+      "endFrame": 147
+    },
+    {
+      "name": "rollout",
+      "startFrame": 148,
+      "endFrame": 292
+    }
+  ],
+  "metrics": {
+    "actuatorWork": {
+      "value": -1014.04376,
+      "unit": "J",
+      "source": "measured",
+      "reason": null
+    },
+    "actuatorWorkNegative": {
+      "value": -1363.7672,
+      "unit": "J",
+      "source": "measured",
+      "reason": null
+    },
+    "actuatorWorkPositive": {
+      "value": 349.89014,
+      "unit": "J",
+      "source": "measured",
+      "reason": null
+    },
+    "airRotation": {
+      "value": -0.57753944,
+      "unit": "rad",
+      "source": "measured",
+      "reason": null
+    },
+    "airtime": {
+      "value": 1.0822917,
+      "unit": "s",
+      "source": "measured",
+      "reason": null
+    },
+    "energyResidual": {
+      "value": -22.800293,
+      "unit": "J",
+      "source": "measured",
+      "reason": null
+    },
+    "impactEnergyLoss": {
+      "value": 54.714844,
+      "unit": "J",
+      "source": "measured",
+      "reason": null
+    },
+    "instinctEffort": {
+      "value": 0.30789518,
+      "unit": "s",
+      "source": "measured",
+      "reason": null
+    },
+    "instinctPeakAngle": {
+      "value": 0.11692485,
+      "unit": "rad",
+      "source": "measured",
+      "reason": null
+    },
+    "instinctPeakOffset": {
+      "value": 8.5987745e-10,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    },
+    "instinctSaturatedTime": {
+      "value": 0,
+      "unit": "s",
+      "source": "measured",
+      "reason": null
+    },
+    "jumpDistance": {
+      "value": 7.861597,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    },
+    "landingForce": {
+      "value": 2213.4602,
+      "unit": "N",
+      "source": "measured",
+      "reason": null
+    },
+    "landingImpulse": {
+      "value": 439.23312,
+      "unit": "N*s",
+      "source": "measured",
+      "reason": null
+    },
+    "landingPitchError": {
+      "value": 0.00030979514,
+      "unit": "rad",
+      "source": "measured",
+      "reason": null
+    },
+    "landingX": {
+      "value": 10.626304,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    },
+    "maxHeightAboveLip": {
+      "value": 0.8877976,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    },
+    "peakNormalForce": {
+      "value": 3979.1074,
+      "unit": "N",
+      "source": "measured",
+      "reason": null
+    },
+    "sweetSpotOffset": {
+      "value": -1.059658,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    },
+    "takeoffAngle": {
+      "value": 0.50926936,
+      "unit": "rad",
+      "source": "measured",
+      "reason": null
+    },
+    "takeoffSpeed": {
+      "value": 8.94248,
+      "unit": "m/s",
+      "source": "measured",
+      "reason": null
+    },
+    "trackingError": {
+      "value": 0.059642725,
+      "unit": "m",
+      "source": "measured",
+      "reason": null
+    }
+  },
+  "landing": {
+    "status": "landed",
+    "region": "sweet-spot",
+    "attitude": "balanced",
+    "firstContact": "rear",
+    "severity": "clean",
+    "crashTime": null,
+    "reasons": []
+  },
+  "telemetry": {
+    "layoutVersion": 2,
+    "strideFloat32": 4,
+    "sampleCount": 293,
+    "channels": [
+      {
+        "name": "contactImpulse",
+        "unit": "N*s",
+        "offset": 0
+      },
+      {
+        "name": "actuatorWork",
+        "unit": "J",
+        "offset": 1
+      },
+      {
+        "name": "speed",
+        "unit": "m/s",
+        "offset": 2
+      },
+      {
+        "name": "comHeight",
+        "unit": "m",
+        "offset": 3
+      }
+    ]
+  },
+  "resultHash": "c7a1d7727554133a6aaa5e12837a53309082d1b54eb1bf02fa6ac99b44804eb9"
+}

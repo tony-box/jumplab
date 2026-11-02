@@ -33,9 +33,10 @@ const createArtifact = (overrides: Partial<RunArtifact> = {}): RunArtifact => {
       maxHeight: { value: 2.1, unit: "m", source: "measured", reason: null }
     },
     telemetry: {
-      layoutVersion: 1,
+      layoutVersion: 2,
+      strideFloat32: 1,
       sampleCount: 3,
-      channels: [{ name: "speed", unit: "m/s", offset: 0, count: 3 }]
+      channels: [{ name: "speed", unit: "m/s", offset: 0 }]
     }
   });
 

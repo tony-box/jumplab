@@ -144,13 +144,12 @@ const migrateScenarioValueV3 = (input: unknown): unknown => {
   let migratedJump = jump;
   const { kind, lipHeight, lipAngle } = jump;
   if (kind !== "drop" && typeof lipHeight === "number" && typeof lipAngle === "number") {
-    const length = Math.min(
-      Math.max(kickerTransitionLength(lipHeight, lipAngle), KICKER_TRANSITION_MIN),
-      KICKER_TRANSITION_MAX
-    );
+    const derived = kickerTransitionLength(lipHeight, lipAngle);
+    const length = Math.min(Math.max(derived, KICKER_TRANSITION_MIN), KICKER_TRANSITION_MAX);
     migratedJump = {
       ...jump,
-      lipAngle: 2 * Math.atan(lipHeight / length),
+      // Only a clamped length changes the arc; recomputing otherwise can drift past angle limits.
+      lipAngle: length === derived ? lipAngle : 2 * Math.atan(lipHeight / length),
       transitionLength: length
     };
   }

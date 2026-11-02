@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  FRAME_STRIDE_FLOAT32,
   hashScenario,
   runArtifactSchema,
   runResultSchema,
@@ -18,7 +19,7 @@ const scenario = scenarioSchema.parse(
   JSON.parse(readFileSync(resolve("tests/fixtures/scenarios/standard-v1.json"), "utf8"))
 );
 const result = runResultSchema.parse(
-  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v1.json"), "utf8"))
+  JSON.parse(readFileSync(resolve("tests/fixtures/run-results/standard-v2.json"), "utf8"))
 );
 const legacySolverVersion = "rapier-0.35.2-two-wheel-contact-v4-geometry-v1";
 
@@ -42,7 +43,7 @@ const createArtifact = async (
       metricDefinitionVersion: "metrics-v1",
       terrainSampleStep: 0.1
     },
-    frameBuffer: new Float32Array(result.frameCount * 36).buffer,
+    frameBuffer: new Float32Array(result.frameCount * FRAME_STRIDE_FLOAT32).buffer,
     telemetryBuffer: new Float32Array([1]).buffer,
     source: "solver"
   });
@@ -53,6 +54,7 @@ const createRepository = () =>
     save: vi.fn(async (artifact: RunArtifact) => artifact),
     replaceSolution: vi.fn(async (_runId: string, artifact: RunArtifact) => artifact),
     get: vi.fn(async () => null),
+    getStored: vi.fn(async () => null),
     list: vi.fn(async () => []),
     remove: vi.fn(async () => undefined)
   }) satisfies RunArtifactRepository;

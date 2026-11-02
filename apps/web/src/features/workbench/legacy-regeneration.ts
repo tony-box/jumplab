@@ -1,8 +1,9 @@
 import {
+  assertCompatibleVersion,
   hashScenario,
-  resolveMigrationPath,
   runArtifactSchema,
   scenarioSchema,
+  type ProviderSource,
   type RunArtifact,
   type Scenario
 } from "../../../../../packages/schema/src/index";
@@ -17,6 +18,22 @@ export type RunRegenerationOutcome = {
   state: RunRegenerationState;
   artifact: RunArtifact | null;
   reason: string | null;
+};
+
+/**
+ * A run as stored. The snapshot and manifest stay unparsed so an older schema or frame layout can
+ * still be verified against its original hash and then regenerated.
+ */
+export type StoredRun = {
+  runId: string;
+  createdAt: string;
+  scenarioSnapshot: unknown;
+  scenarioHash: string;
+  model: { scenarioSchemaVersion: number; solverVersion: string; modelVersion: string };
+  manifest: unknown;
+  frameBuffer: ArrayBuffer;
+  telemetryBuffer: ArrayBuffer;
+  source: ProviderSource;
 };
 
 const unavailable = (reason: string): RunRegenerationOutcome => ({
@@ -37,19 +54,24 @@ const validFrameBuffer = (artifact: RunArtifact): boolean => {
   }
 };
 
-const migrateScenarioSnapshot = (artifact: RunArtifact): Scenario => {
-  const path = resolveMigrationPath("scenario", artifact.model.scenarioSchemaVersion);
-  const targetVersion = path.at(-1);
-  if (targetVersion !== versionManifest.schema) {
-    throw new Error(
-      `Scenario schema ${artifact.model.scenarioSchemaVersion} cannot migrate to ${versionManifest.schema}`
-    );
-  }
-  return scenarioSchema.parse(artifact.scenarioSnapshot);
+/** Parses a stored run as current, or returns null when its manifest or layout is out of date. */
+const parseCurrent = (stored: StoredRun, scenario: Scenario): RunArtifact | null => {
+  const parsed = runArtifactSchema.safeParse({
+    runId: stored.runId,
+    createdAt: stored.createdAt,
+    scenarioSnapshot: scenario,
+    scenarioHash: stored.scenarioHash,
+    manifest: stored.manifest,
+    model: stored.model,
+    frameBuffer: stored.frameBuffer,
+    telemetryBuffer: stored.telemetryBuffer,
+    source: stored.source
+  });
+  return parsed.success ? parsed.data : null;
 };
 
 export const ensureCurrentRunArtifact = async ({
-  artifact,
+  artifact: stored,
   activeSolverVersion,
   activeModelVersion = versionManifest.model,
   activeSchemaVersion = versionManifest.schema,
@@ -57,7 +79,7 @@ export const ensureCurrentRunArtifact = async ({
   solve,
   onRegenerating
 }: {
-  artifact: RunArtifact;
+  artifact: StoredRun;
   activeSolverVersion: string;
   activeModelVersion?: string;
   activeSchemaVersion?: number;
@@ -65,35 +87,38 @@ export const ensureCurrentRunArtifact = async ({
   solve: (runId: string, scenario: Scenario) => Promise<RunArtifact>;
   onRegenerating?: () => void;
 }): Promise<RunRegenerationOutcome> => {
-  const originalHash = await hashScenario(artifact.scenarioSnapshot);
-  if (originalHash !== artifact.scenarioHash) {
+  // The hash covers the snapshot exactly as saved, before any migration touches it.
+  if ((await hashScenario(stored.scenarioSnapshot)) !== stored.scenarioHash) {
     return unavailable("Stored scenario snapshot hash does not match this run");
   }
 
   let scenario: Scenario;
   try {
-    scenario = migrateScenarioSnapshot(artifact);
+    assertCompatibleVersion("scenario", stored.model.scenarioSchemaVersion);
+    scenario = scenarioSchema.parse(stored.scenarioSnapshot);
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : "Scenario snapshot is invalid");
   }
 
-  const requiresRegeneration =
-    artifact.model.scenarioSchemaVersion !== activeSchemaVersion ||
-    artifact.model.modelVersion !== activeModelVersion ||
-    artifact.model.solverVersion !== activeSolverVersion ||
-    !validFrameBuffer(artifact);
-  if (!requiresRegeneration) {
-    return { state: "current", artifact, reason: null };
+  const current = parseCurrent(stored, scenario);
+  if (
+    current &&
+    stored.model.scenarioSchemaVersion === activeSchemaVersion &&
+    stored.model.modelVersion === activeModelVersion &&
+    stored.model.solverVersion === activeSolverVersion &&
+    validFrameBuffer(current)
+  ) {
+    return { state: "current", artifact: current, reason: null };
   }
 
   onRegenerating?.();
   try {
-    const solved = await solve(artifact.runId, scenario);
-    const currentHash = await hashScenario(scenario);
-    if (solved.runId !== artifact.runId) {
+    const solved = await solve(stored.runId, scenario);
+    const scenarioHash = await hashScenario(scenario);
+    if (solved.runId !== stored.runId) {
       throw new Error("Regenerated solution changed the run identity");
     }
-    if (solved.scenarioHash !== currentHash || solved.manifest.scenarioHash !== currentHash) {
+    if (solved.scenarioHash !== scenarioHash || solved.manifest.scenarioHash !== scenarioHash) {
       throw new Error("Regenerated solution scenario hash does not match the saved snapshot");
     }
     if (
@@ -107,22 +132,18 @@ export const ensureCurrentRunArtifact = async ({
       );
     }
 
-    const finalArtifact = runArtifactSchema.parse({
-      ...solved,
-      runId: artifact.runId,
-      createdAt: artifact.createdAt,
-      scenarioSnapshot: artifact.scenarioSnapshot,
-      scenarioHash: artifact.scenarioHash,
-      manifest: { ...solved.manifest, runId: artifact.runId, scenarioHash: artifact.scenarioHash }
+    // The regenerated run belongs to the migrated scenario, so it is stored with that snapshot
+    // and its hash; nothing from the old layout is carried over.
+    const replacement = await repository.replaceSolution(stored.runId, {
+      scenarioSnapshot: scenario,
+      scenarioHash,
+      manifest: { ...solved.manifest, runId: stored.runId, scenarioHash },
+      model: solved.model,
+      frameBuffer: solved.frameBuffer,
+      telemetryBuffer: solved.telemetryBuffer,
+      source: solved.source
     });
-    const stored = await repository.replaceSolution(artifact.runId, {
-      manifest: finalArtifact.manifest,
-      model: finalArtifact.model,
-      frameBuffer: finalArtifact.frameBuffer,
-      telemetryBuffer: finalArtifact.telemetryBuffer,
-      source: finalArtifact.source
-    });
-    return { state: "regenerated", artifact: stored, reason: null };
+    return { state: "regenerated", artifact: replacement, reason: null };
   } catch (error) {
     return {
       state: "failed",

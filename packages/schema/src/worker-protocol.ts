@@ -208,15 +208,15 @@ export const designValidatedEventSchema = envelopeSchema.extend({
 });
 
 export const workerErrorCodeSchema = z.enum([
-  "protocol_mismatch",
-  "solver_version_mismatch",
-  "invalid_scenario",
-  "unsupported_schema",
-  "core_init_failed",
-  "numerical_instability",
-  "buffer_layout_error",
-  "internal_error",
+  "protocol-mismatch",
+  "solver-version-mismatch",
+  "invalid-scenario",
   "unsupported-schema",
+  "core-init-failed",
+  "core-crashed",
+  "timeout",
+  "buffer-layout-error",
+  "internal-error",
   "invalid-bike-json",
   "geometry-invalid",
   "invalid-baseline",
@@ -225,7 +225,6 @@ export const workerErrorCodeSchema = z.enum([
   "core-unavailable",
   "operation-unsupported"
 ]);
-
 export const errorEventSchema = envelopeSchema.extend({
   type: z.literal("error"),
   runId: z.union([z.string().uuid(), z.null()]),

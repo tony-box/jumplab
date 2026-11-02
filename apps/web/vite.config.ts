@@ -22,9 +22,11 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // The physics core is a hashed .wasm asset; it must be precached for offline solves.
+        globPatterns: ["**/*.{js,css,html,svg,woff2,wasm}"],
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         additionalManifestEntries: [
-          { url: "/designer", revision: "scenario-v3" },
+          { url: "/designer", revision: "scenario-v4" },
           { url: "/pose", revision: "designer-redirect-v1" }
         ]
       },
@@ -33,8 +35,11 @@ export default defineConfig({
       }
     })
   ],
+  worker: {
+    format: "es"
+  },
   server: {
     host: "127.0.0.1",
-    port: 4173
+    port: 5173
   }
 });

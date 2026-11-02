@@ -68,6 +68,7 @@ const emptyRunRepository: RunArtifactRepository = {
     );
   },
   get: async () => null,
+  getStored: async () => null,
   list: async () => [],
   remove: async () => undefined
 };

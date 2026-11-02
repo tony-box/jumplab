@@ -14,11 +14,11 @@ describe("spike input contracts", () => {
     expect(new Set(controls.map((control) => control.scenarioPath)).size).toBe(controls.length);
 
     for (const control of controls) {
-      expect(control.unit).toMatch(/^(m|rad|m\/s|kg)$/);
+      expect(control.unit).toMatch(/^(m|rad|m\/s|kg|x)$/);
       expect(control.minimum).toBeLessThan(control.maximum);
       expect(control.physicalQuantity.length).toBeGreaterThan(2);
       expect(control.explanation.length).toBeGreaterThan(20);
-      expect(control.scenarioPath).toMatch(/^scenario\.(jump|entry|rider|bike)\./);
+      expect(control.scenarioPath).toMatch(/^scenario\.(jump|entry|rider|bike|solver\.riderInstinct)\./);
     }
   });
 

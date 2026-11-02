@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 
 import { DesignerPage } from "./features/designer/DesignerPage";
 import { LibraryPage } from "./features/library/LibraryPage";
@@ -23,7 +23,10 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
       return (
         <main className="fatal-error">
           <h1>Jump Lab could not open this view</h1>
-          <button className="btn primary" onClick={() => location.assign("/workbench")}>
+          <button className="btn primary" onClick={() => this.setState({ failed: false })}>
+            Try again
+          </button>
+          <button className="btn" onClick={() => location.assign("/workbench")}>
             Return to workbench
           </button>
         </main>
@@ -33,10 +36,16 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 
+/** Remounts the boundary per route so a failure in one view does not lock out the others. */
+const RouteBoundary = ({ children }: { children: ReactNode }) => {
+  const { pathname } = useLocation();
+  return <AppErrorBoundary key={pathname}>{children}</AppErrorBoundary>;
+};
+
 export default function App() {
   return (
-    <AppErrorBoundary>
-      <BrowserRouter>
+    <BrowserRouter>
+      <RouteBoundary>
         <Routes>
           <Route path="/" element={<Navigate to="/workbench" replace />} />
           <Route path="/workbench" element={<WorkbenchPage />} />
@@ -48,7 +57,7 @@ export default function App() {
           <Route path="/validation" element={<ValidationPage />} />
           <Route path="*" element={<Navigate to="/workbench" replace />} />
         </Routes>
-      </BrowserRouter>
-    </AppErrorBoundary>
+      </RouteBoundary>
+    </BrowserRouter>
   );
 }

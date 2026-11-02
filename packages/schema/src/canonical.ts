@@ -1,4 +1,10 @@
 const encoder = new TextEncoder();
+/**
+ * Key order for canonical JSON. Pinned to one collator so hashes never depend on the user's
+ * locale; it matches the original `localeCompare` order, keeping stored run hashes verifiable.
+ * This app hash is authoritative; the physics core's own scenario hash is internal to it.
+ */
+const keyCollator = new Intl.Collator("en");
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -9,7 +15,7 @@ const canonicalizeValue = (value: unknown): unknown => {
   }
 
   if (isRecord(value)) {
-    const sortedKeys = Object.keys(value).sort((left, right) => left.localeCompare(right));
+    const sortedKeys = Object.keys(value).sort(keyCollator.compare);
     const normalized: Record<string, unknown> = {};
 
     for (const key of sortedKeys) {

@@ -23,6 +23,10 @@ const readScalar = (
   fallback: number
 ): number => readField?.(frameIndex, field)[0] ?? fallback;
 
+/** Keeps a fractional frame position inside a buffer, so a shorter run can never be over-read. */
+const clampPosition = (position: number, frameCount: number): number =>
+  Math.min(Math.max(Number.isFinite(position) ? position : 0, 0), Math.max(frameCount - 1, 0));
+
 const readInterpolatedScalar = (
   frameView: Parameters<typeof interpolateFrameField>[0] | null,
   framePosition: number,
@@ -40,12 +44,13 @@ const readInterpolatedAngle = (
   fallback: number
 ): number => {
   if (!frameView?.hasField(field)) return fallback;
-  const lowerIndex = Math.floor(framePosition);
-  const upperIndex = Math.min(frameView.frameCount - 1, Math.ceil(framePosition));
+  const position = clampPosition(framePosition, frameView.frameCount);
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.min(frameView.frameCount - 1, Math.ceil(position));
   const lower = frameView.readField(lowerIndex, field)[0] ?? fallback;
   const upper = frameView.readField(upperIndex, field)[0] ?? lower;
   const delta = Math.atan2(Math.sin(upper - lower), Math.cos(upper - lower));
-  return lower + delta * (framePosition - lowerIndex);
+  return lower + delta * (position - lowerIndex);
 };
 
 const landmarkFieldNames = [
@@ -134,28 +139,29 @@ export const WorkbenchPage = () => {
             touchdownIndicatorVisible: false
           };
         }
-        const landmarks = readLandmarks(frameView, playback.frameIndex) ?? null;
+        const safeIndex = Math.min(playback.frameIndex, frameView.frameCount - 1);
+        const landmarks = readLandmarks(frameView, safeIndex) ?? null;
         const targets = frameView.hasField("knee")
           ? {
-              knee: frameView.readField(playback.frameIndex, "knee")[0] ?? 0,
-              hip: frameView.readField(playback.frameIndex, "hip")[0] ?? 0,
-              spine: frameView.readField(playback.frameIndex, "spine")[0] ?? 0
+              knee: frameView.readField(safeIndex, "knee")[0] ?? 0,
+              hip: frameView.readField(safeIndex, "hip")[0] ?? 0,
+              spine: frameView.readField(safeIndex, "spine")[0] ?? 0
             }
           : null;
         const derivedArm = frameView.hasField("shoulder")
           ? {
-              shoulder: frameView.readField(playback.frameIndex, "shoulder")[0] ?? 0,
-              elbow: frameView.readField(playback.frameIndex, "elbow")[0] ?? 0,
+              shoulder: frameView.readField(safeIndex, "shoulder")[0] ?? 0,
+              elbow: frameView.readField(safeIndex, "elbow")[0] ?? 0,
               constrained: false
             }
           : null;
         const contact =
           frameView.hasField("groundedRear") && frameView.hasField("groundedFront")
-            ? frameView.readContactState(playback.frameIndex)
+            ? frameView.readContactState(safeIndex)
             : null;
         const framePoint = {
-          x: readScalar(frameView.readField, playback.frameIndex, "x", 0),
-          y: readScalar(frameView.readField, playback.frameIndex, "y", 0)
+          x: readScalar(frameView.readField, safeIndex, "x", 0),
+          y: readScalar(frameView.readField, safeIndex, "y", 0)
         };
         return {
           targets,
@@ -194,48 +200,77 @@ export const WorkbenchPage = () => {
     );
   }
 
+  // The run can change length under the playhead (re-solve); clamp before reading.
+  const framePosition = clampPosition(playback.framePosition, frameCount);
+  const frameIndex = Math.round(framePosition);
   const contact =
     workbench.frameView?.hasField("groundedRear") && workbench.frameView.hasField("groundedFront")
-      ? workbench.frameView.readContactState(playback.frameIndex)
+      ? workbench.frameView.readContactState(frameIndex)
       : null;
+  // Compare against the baseline at the same time, not the same frame index: runs may use
+  // different output rates and lengths.
+  const baselineHz = workbench.baselineArtifact?.manifest.outputHz ?? outputHz;
+  const baselinePosition = workbench.baselineFrameView
+    ? clampPosition((framePosition / outputHz) * baselineHz, workbench.baselineFrameView.frameCount)
+    : 0;
   const restingY = terrainHeightAt(workbench.terrain.profile, workbench.scenario.entry.startX) ?? 0;
   const frame = {
     x: readInterpolatedScalar(
       workbench.frameView,
-      playback.framePosition,
+      framePosition,
       "x",
       workbench.scenario.entry.startX
     ),
-    y: readInterpolatedScalar(workbench.frameView, playback.framePosition, "y", restingY),
-    pitch: readInterpolatedAngle(workbench.frameView, playback.framePosition, "pitch", 0),
+    y: readInterpolatedScalar(workbench.frameView, framePosition, "y", restingY),
+    pitch: readInterpolatedAngle(workbench.frameView, framePosition, "pitch", 0),
+    vx: readInterpolatedScalar(workbench.frameView, framePosition, "vx", 0),
+    vy: readInterpolatedScalar(workbench.frameView, framePosition, "vy", 0),
+    ...(workbench.frameView?.hasField("riderX")
+      ? {
+          riderX: readInterpolatedScalar(workbench.frameView, framePosition, "riderX", 0),
+          riderY: readInterpolatedScalar(workbench.frameView, framePosition, "riderY", 0),
+          actuatorForceX: readInterpolatedScalar(
+            workbench.frameView,
+            framePosition,
+            "actuatorForceX",
+            0
+          ),
+          actuatorForceY: readInterpolatedScalar(
+            workbench.frameView,
+            framePosition,
+            "actuatorForceY",
+            0
+          ),
+          actuatorTorque: readInterpolatedScalar(
+            workbench.frameView,
+            framePosition,
+            "actuatorTorque",
+            0
+          )
+        }
+      : {}),
+    crashed:
+      (workbench.frameView?.hasField("crashed")
+        ? workbench.frameView.readField(frameIndex, "crashed")[0]
+        : 0) === 1,
     groundedRear: contact?.groundedRear,
     groundedFront: contact?.groundedFront,
     normalForceRear: contact?.normalForceRear,
     normalForceFront: contact?.normalForceFront,
     minClearance: contact?.minClearance,
-    landmarks: readInterpolatedLandmarks(workbench.frameView, playback.framePosition)
+    landmarks: readInterpolatedLandmarks(workbench.frameView, framePosition)
   };
 
   const baselineFrame = workbench.baselineFrameView
     ? {
         x: readInterpolatedScalar(
           workbench.baselineFrameView,
-          playback.framePosition,
+          baselinePosition,
           "x",
           workbench.scenario.entry.startX
         ),
-        y: readInterpolatedScalar(
-          workbench.baselineFrameView,
-          playback.framePosition,
-          "y",
-          restingY
-        ),
-        pitch: readInterpolatedAngle(
-          workbench.baselineFrameView,
-          playback.framePosition,
-          "pitch",
-          0
-        )
+        y: readInterpolatedScalar(workbench.baselineFrameView, baselinePosition, "y", restingY),
+        pitch: readInterpolatedAngle(workbench.baselineFrameView, baselinePosition, "pitch", 0)
       }
     : null;
 
@@ -326,12 +361,13 @@ export const WorkbenchPage = () => {
             scenario={workbench.scenario}
             frame={frame}
             baselineFrame={baselineFrame}
-            frameIndex={playback.frameIndex}
+            frameIndex={frameIndex}
             run={workbench.frameView ? workbench.run : null}
             terrainProfile={workbench.terrain.profile}
             terrainState={workbench.terrain.state}
             touchdownFrame={workbench.touchdownFrame}
             overlays={workbench.overlays}
+            trajectory={workbench.trajectory}
             camera={{
               mode: workbench.cameraMode,
               zoomFactor: workbench.cameraZoomFactor,
@@ -349,9 +385,16 @@ export const WorkbenchPage = () => {
             onToggleBaseline={workbench.toggleBaseline}
           />
 
-          <Callout title="Model limitation" tone="info">
-            Rider posture and movement and suspension setup are shown, but are not yet coupled to
-            takeoff, flight, landing, or contact loads.
+          {workbench.resultState === "stale" ? (
+            <Callout title="Result is out of date" tone="warning">
+              The scenario changed after this run was solved. Solve again to see the current jump.
+            </Callout>
+          ) : null}
+
+          <Callout title="What the model covers" tone="info">
+            The rider&apos;s authored body position moves the bike through internal forces at the
+            pedals and grips, so pumping, popping, and in-air rotation come from the pose. Tires are
+            frictionless, and suspension and air drag are not simulated.
           </Callout>
 
           {workbench.terrain.state === "error" ? (

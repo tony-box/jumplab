@@ -13,7 +13,13 @@ import type { BikeJumperDatabase, RunRecord, ScenarioRecord } from "./database";
 
 export type DerivedRunSolution = Pick<
   RunArtifact,
-  "manifest" | "model" | "frameBuffer" | "telemetryBuffer" | "source"
+  | "scenarioSnapshot"
+  | "scenarioHash"
+  | "manifest"
+  | "model"
+  | "frameBuffer"
+  | "telemetryBuffer"
+  | "source"
 >;
 
 export class StorageQuotaError extends Error {
@@ -168,8 +174,8 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
           const validated = runArtifactSchema.parse({
             runId: existing.runId,
             createdAt: existing.createdAt,
-            scenarioSnapshot: existing.scenarioSnapshot,
-            scenarioHash: existing.scenarioHash,
+            scenarioSnapshot: derivedSolution.scenarioSnapshot,
+            scenarioHash: derivedSolution.scenarioHash,
             manifest: derivedSolution.manifest,
             model: derivedSolution.model,
             frameBuffer: derivedSolution.frameBuffer,
@@ -178,6 +184,8 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
           });
           const replacement: RunRecord = {
             ...existing,
+            scenarioSnapshot: cloneScenario(validated.scenarioSnapshot),
+            scenarioHash: validated.scenarioHash,
             source: validated.source,
             model: { ...validated.model },
             persistenceVersion: 2,

@@ -43,12 +43,10 @@ test("workbench camera controls are named and keyboard operable", async ({ page 
 
 test("workbench exposes contact and model data-source honesty text", async ({ page }) => {
   await page.goto("/workbench");
-  await expect(page.locator('[data-od-id="contact-readout"]')).toContainText("contact unavailable");
+  await expect(page.locator('[data-od-id="contact-readout"]')).toContainText("no run");
   await expect(page.locator('[data-od-id="terrain-status"]')).toContainText("terrain ready");
   await expect(
-    page.getByText(
-      /Rider posture and movement and suspension setup are shown, but are not yet coupled to takeoff, flight, landing, or contact loads/i
-    )
+    page.getByText(/Tires are frictionless, and suspension and air drag are not simulated/i)
   ).toBeVisible();
 });
 

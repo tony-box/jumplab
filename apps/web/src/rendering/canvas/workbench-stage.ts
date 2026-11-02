@@ -40,6 +40,15 @@ export type WorkbenchFrame = {
   minClearance?: number;
   shoulder?: number;
   elbow?: number;
+  /** World centre of mass of the rider body. */
+  riderX?: number;
+  riderY?: number;
+  /** Rider actuator force on the rider (bike-local, N) and torque (N·m). */
+  actuatorForceX?: number;
+  actuatorForceY?: number;
+  actuatorTorque?: number;
+  /** True once the run has crashed; the marker stays on from then on. */
+  crashed?: boolean;
   /** Bike-local achieved rider/contact landmarks; undefined for legacy runs. */
   landmarks?: AchievedPoseLandmarks;
 };
@@ -172,6 +181,8 @@ export const drawWorkbenchStage = (
     overlays: string[];
     camera: CameraViewState;
     canonicalGeometry: CanonicalBikeGeometry;
+    /** World positions of the bike origin over the solved run. */
+    trajectory?: readonly Point2[];
     viewOverride?: WorldBounds;
   }
 ): CameraResolution => {
@@ -233,23 +244,20 @@ export const drawWorkbenchStage = (
     drawTerrainProfileSegments(context, terrainProfile, toTerrainScreen);
   }
 
-  context.strokeStyle = "#7fc9e8";
-  context.lineWidth = 2;
-  context.setLineDash([7, 6]);
-  context.beginPath();
-  for (let step = 0; step <= 36; step += 1) {
-    const time = step / 18;
-    const x = scenario.entry.speed * time * Math.cos(scenario.jump.lipAngle);
-    const y =
-      scenario.jump.lipHeight +
-      scenario.entry.speed * time * Math.sin(scenario.jump.lipAngle) -
-      4.905 * time * time;
-    const [screenX, screenY] = viewport.worldToCss(x, y);
-    if (step === 0) context.moveTo(screenX, screenY);
-    else context.lineTo(screenX, screenY);
+  const trajectory = options.trajectory ?? [];
+  if (overlays.includes("trajectory") && trajectory.length > 1) {
+    context.strokeStyle = "#7fc9e8";
+    context.lineWidth = 2;
+    context.setLineDash([7, 6]);
+    context.beginPath();
+    trajectory.forEach((point, index) => {
+      const [screenX, screenY] = viewport.worldToCss(point.x, point.y);
+      if (index === 0) context.moveTo(screenX, screenY);
+      else context.lineTo(screenX, screenY);
+    });
+    context.stroke();
+    context.setLineDash([]);
   }
-  context.stroke();
-  context.setLineDash([]);
 
   if (overlays.includes("baseline") && baselineFrame) {
     context.save();
@@ -289,27 +297,62 @@ export const drawWorkbenchStage = (
     context.fill();
   }
 
-  if (overlays.includes("velocity")) {
-    const vectorLength = Math.min(44, viewport.scale * 0.75);
-    context.strokeStyle = "#f4c66a";
-    context.fillStyle = "#f4c66a";
+  const arrow = (from: Point2, vector: Point2, color: string) => {
+    const length = Math.hypot(vector.x, vector.y);
+    if (length < 1e-3) return;
+    const [startX, startY] = toScreen(from);
+    const [endX, endY] = toScreen({ x: from.x + vector.x, y: from.y + vector.y });
+    const angle = Math.atan2(endY - startY, endX - startX);
+    context.strokeStyle = color;
+    context.fillStyle = color;
     context.lineWidth = 2;
     context.beginPath();
-    context.moveTo(bikeX, bikeY);
-    context.lineTo(bikeX + vectorLength, bikeY - vectorLength * 0.2);
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
     context.stroke();
+    context.beginPath();
+    context.moveTo(endX, endY);
+    context.lineTo(endX - 8 * Math.cos(angle - 0.4), endY - 8 * Math.sin(angle - 0.4));
+    context.lineTo(endX - 8 * Math.cos(angle + 0.4), endY - 8 * Math.sin(angle + 0.4));
+    context.closePath();
+    context.fill();
+  };
+  const bikeCenter = bikeGeometry.massProperties.centerOfGravity;
+
+  if (overlays.includes("velocity") && frame.vx !== undefined && frame.vy !== undefined) {
+    // 0.1 s of travel: the arrow ends where the bike will be a tenth of a second later.
+    arrow(bikeCenter, { x: frame.vx * 0.1, y: frame.vy * 0.1 }, "#f4c66a");
   }
 
   if (overlays.includes("force")) {
-    const forceLength = Math.min(52, viewport.scale);
-    context.strokeStyle = "#f08f7f";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.moveTo(bikeX, bikeY);
-    context.lineTo(bikeX, bikeY + forceLength);
-    context.stroke();
+    // Ground support at each wheel, 1 kN per metre, along the bike's up axis.
+    const up = { x: -Math.sin(frame.pitch), y: Math.cos(frame.pitch) };
+    for (const [axleName, force] of [
+      ["rearAxle", frame.normalForceRear],
+      ["frontAxle", frame.normalForceFront]
+    ] as const) {
+      const axle = canonicalLandmark(canonicalGeometry, axleName, axleName);
+      if (!axle || !force) continue;
+      const wheelRadius = scenario.bike.wheelSize * 0.0254 * 0.5;
+      const contact = toWorldPoint({ x: axle.x, y: axle.y - wheelRadius }, frame);
+      arrow(contact, { x: up.x * (force / 1000), y: up.y * (force / 1000) }, "#f08f7f");
+    }
+    // The rider's push on the bike is the reaction to the actuator force on the rider.
+    if (
+      frame.riderX !== undefined &&
+      frame.riderY !== undefined &&
+      frame.actuatorForceX !== undefined &&
+      frame.actuatorForceY !== undefined
+    ) {
+      const cos = Math.cos(frame.pitch);
+      const sin = Math.sin(frame.pitch);
+      const onBike = {
+        x: -(frame.actuatorForceX * cos - frame.actuatorForceY * sin) / 1000,
+        y: -(frame.actuatorForceX * sin + frame.actuatorForceY * cos) / 1000
+      };
+      arrow({ x: frame.riderX, y: frame.riderY }, onBike, "#e8a0d8");
+    }
   }
-
   if (overlays.includes("com")) {
     const centerOfGravity = bikeGeometry.massProperties.centerOfGravity;
     const [centerX, centerY] = viewport.worldToCss(centerOfGravity.x, centerOfGravity.y);
@@ -317,13 +360,37 @@ export const drawWorkbenchStage = (
     context.beginPath();
     context.arc(centerX, centerY, 4, 0, Math.PI * 2);
     context.fill();
+    if (frame.riderX !== undefined && frame.riderY !== undefined) {
+      const [riderX, riderY] = viewport.worldToCss(frame.riderX, frame.riderY);
+      context.strokeStyle = "#82d28d";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(riderX, riderY, 6, 0, Math.PI * 2);
+      context.stroke();
+    }
   }
 
-  if (overlays.includes("torque")) {
+  if (overlays.includes("torque") && frame.actuatorTorque && frame.riderX !== undefined) {
+    // Arc sweep shows the rider's twisting effort; a full turn is 400 N·m.
+    const [centerX, centerY] = viewport.worldToCss(frame.riderX, frame.riderY ?? 0);
+    const sweep = Math.max(-1, Math.min(1, frame.actuatorTorque / 400)) * Math.PI * 1.8;
     context.strokeStyle = "#b7a9ef";
     context.lineWidth = 2;
     context.beginPath();
-    context.arc(bikeX, bikeY, 14, Math.PI * 0.2, Math.PI * 1.6);
+    // Canvas y points down, so a counter-clockwise torque sweeps toward negative angles.
+    context.arc(centerX, centerY, 16, -Math.PI / 2, -Math.PI / 2 - sweep, sweep > 0);
+    context.stroke();
+  }
+
+  if (frame.crashed) {
+    const [crashX, crashY] = toScreen(bikeCenter);
+    context.strokeStyle = "#f08f7f";
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(crashX - 9, crashY - 9);
+    context.lineTo(crashX + 9, crashY + 9);
+    context.moveTo(crashX + 9, crashY - 9);
+    context.lineTo(crashX - 9, crashY + 9);
     context.stroke();
   }
 

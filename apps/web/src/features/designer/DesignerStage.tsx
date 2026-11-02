@@ -10,6 +10,7 @@ import type {
 } from "../../../../../packages/schema/src/index";
 import { Button } from "../../components/ui";
 import { drawPoseStage, poseStageViewport } from "../../rendering/canvas/pose-stage";
+import { useCanvasResize } from "../../rendering/canvas/useCanvasResize";
 import { registerPoseHandleTestControls } from "../../test-hooks";
 import { handleTargetFromPoint, pickPoseHandle, poseHandles } from "./pose-handles";
 import type { PoseFeasibleLimits } from "./pose-limits";
@@ -72,6 +73,7 @@ export const DesignerStage = ({
   }, [selectedTargets]);
 
   const showLimits = recentlyAdjusted || active !== null || hovered !== null;
+  const resizeTick = useCanvasResize(canvasRef);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -103,6 +105,7 @@ export const DesignerStage = ({
     feasibleLimits,
     hovered,
     mode,
+    resizeTick,
     sample,
     saturated,
     scenario,

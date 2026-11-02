@@ -11,9 +11,16 @@ import {
   FRAME_LAYOUT_FIELDS,
   FRAME_LAYOUT_VERSION,
   FRAME_STRIDE_FLOAT32,
+  DEFAULT_RIDER_COUPLING,
+  DEFAULT_RIDER_INSTINCT,
   PROTOCOL_VERSION,
+  SCENARIO_SCHEMA_VERSION,
+  SOLVER_VERSION,
+  TELEMETRY_CHANNELS,
+  TELEMETRY_LAYOUT_VERSION,
   bikeGeometrySpecSchema,
   hashScenario,
+  kickerTransitionLength,
   parseScenario,
   parseScenarioFile,
   runResultSchema,
@@ -37,7 +44,7 @@ const migratedGeometry = {
   handlebarOffsetY: 0.03
 };
 
-const scenario = scenarioSchema.parse({
+const legacyV2Scenario = {
   schemaVersion: 2,
   id: "2fbb1b9d-c304-48ef-b42d-f7c3418a8f30",
   name: "Scenario",
@@ -104,12 +111,14 @@ const scenario = scenarioSchema.parse({
     outputHz: 240,
     solverVersion: "rapier-0.35.2-enhanced-determinism"
   }
-});
+};
+
+const scenario = scenarioSchema.parse(legacyV2Scenario);
 
 const manifest = runResultSchema.parse({
   runId: "0ea94457-4557-43e5-a1f2-0a0658b8f13a",
   scenarioHash: "a".repeat(64),
-  solverVersion: "rapier-0.35.2-enhanced-determinism",
+  solverVersion: SOLVER_VERSION,
   frameLayout: {
     version: FRAME_LAYOUT_VERSION,
     strideFloat32: FRAME_STRIDE_FLOAT32,
@@ -121,9 +130,37 @@ const manifest = runResultSchema.parse({
   metrics: {
     airtime: { value: 0, unit: "s", source: "measured", reason: null }
   },
-  telemetry: { layoutVersion: 1, sampleCount: 1, channels: [] },
+  landing: {
+    status: "airborne-at-end",
+    region: null,
+    attitude: null,
+    firstContact: null,
+    severity: "clean",
+    crashTime: null,
+    reasons: ["run ended in the air"]
+  },
+  telemetry: {
+    layoutVersion: TELEMETRY_LAYOUT_VERSION,
+    strideFloat32: TELEMETRY_CHANNELS.length,
+    sampleCount: 1,
+    channels: TELEMETRY_CHANNELS.map((channel, offset) => ({ ...channel, offset }))
+  },
   resultHash: "b".repeat(64)
 });
+
+const capabilities = {
+  protocolVersion: PROTOCOL_VERSION,
+  solverVersion: "solver-v1",
+  modelVersion: "model-v1",
+  deterministic: true,
+  supportedScenarioPaths: ["scenario.entry.speed", "scenario.jump.gap"],
+  supportedOutputs: ["contactImpulse", "landingOutcome"],
+  ccd: true,
+  contactImpulse: true,
+  riderCoupling: true,
+  riderInstinct: true,
+  suspension: false
+};
 
 describe("application contracts", () => {
   it.each([
@@ -166,39 +203,47 @@ describe("application contracts", () => {
     ).toThrow();
   });
 
-  it("migrates v2 scenarios to v3 without changing existing values or pose targets", () => {
-    const legacy = structuredClone(scenario) as unknown as Record<string, unknown>;
-    legacy.schemaVersion = 2;
-    const legacyBike = structuredClone(scenario.bike) as unknown as Record<string, unknown>;
-    delete legacyBike.geometry;
-    legacy.bike = legacyBike;
+  it("migrates v2 scenarios through v3 geometry to v4 without changing authored values", () => {
+    const legacy = structuredClone(legacyV2Scenario) as Record<string, unknown>;
 
     const migrated = parseScenario(legacy);
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(SCENARIO_SCHEMA_VERSION);
     expect(migrated.bike.geometry).toEqual(migratedGeometry);
-    expect(migrated.id).toBe(legacy.id);
-    expect(migrated.jump).toEqual(legacy.jump);
-    expect(migrated.rider).toEqual(legacy.rider);
-    expect(migrated.entry).toEqual(legacy.entry);
-    expect(migrated.poseClip).toEqual(legacy.poseClip);
-    expect(migrated.solver).toEqual(legacy.solver);
-    expect(migrated.bike).toMatchObject(legacyBike);
+    expect(migrated.id).toBe(legacyV2Scenario.id);
+    expect(migrated.jump).toEqual({
+      ...legacyV2Scenario.jump,
+      lipAngle: expect.closeTo(legacyV2Scenario.jump.lipAngle, 12),
+      transitionLength: expect.closeTo(kickerTransitionLength(1, 0.9), 9)
+    });
+    const { kp: _kp, kd: _kd, joints, ...riderValues } = legacyV2Scenario.rider;
+    expect(migrated.rider).toEqual({
+      ...riderValues,
+      coupling: DEFAULT_RIDER_COUPLING,
+      joints: Object.fromEntries(
+        Object.entries(joints).map(([name, { min, max }]) => [name, { min, max }])
+      )
+    });
+    expect(migrated.entry).toEqual(legacyV2Scenario.entry);
+    expect(migrated.poseClip).toEqual(legacyV2Scenario.poseClip);
+    const { seed: _seed, ...solverValues } = legacyV2Scenario.solver;
+    expect(migrated.solver).toEqual({
+      ...solverValues,
+      solverVersion: SOLVER_VERSION,
+      riderInstinct: DEFAULT_RIDER_INSTINCT
+    });
+    expect(migrated.bike).toMatchObject(legacyV2Scenario.bike);
   });
 
-  it("migrates scenario-file envelopes and deterministically rehashes v3 content", async () => {
-    const legacy = structuredClone(scenario) as unknown as Record<string, unknown>;
-    legacy.schemaVersion = 2;
-    const legacyBike = structuredClone(scenario.bike) as unknown as Record<string, unknown>;
-    delete legacyBike.geometry;
-    legacy.bike = legacyBike;
+  it("migrates scenario-file envelopes and deterministically rehashes v4 content", async () => {
+    const legacy = structuredClone(legacyV2Scenario) as Record<string, unknown>;
     const legacyHash = await hashScenario(legacy);
     const legacyFile = {
       format: "bike-jumper-scenario",
       schemaVersion: 2,
       exportedBy: {
         appVersion: "0.1.0",
-        solverVersion: scenario.solver.solverVersion,
+        solverVersion: legacyV2Scenario.solver.solverVersion,
         exportedAt: "2026-09-01T12:00:00.000Z"
       },
       scenario: legacy,
@@ -208,15 +253,15 @@ describe("application contracts", () => {
     const first = await parseScenarioFile(legacyFile);
     const second = await parseScenarioFile(structuredClone(legacyFile));
 
-    expect(first.schemaVersion).toBe(3);
-    expect(first.scenario.schemaVersion).toBe(3);
+    expect(first.schemaVersion).toBe(4);
+    expect(first.scenario.schemaVersion).toBe(4);
     expect(first.scenario.poseClip).toEqual(legacy.poseClip);
     expect(first.contentHash).toBe(await hashScenario(first.scenario));
     expect(first.contentHash).not.toBe(legacyHash);
     expect(second).toEqual(first);
   });
 
-  it("produces stable canonical hashes for equivalent migrated v3 scenarios", async () => {
+  it("produces stable canonical hashes for equivalent migrated v4 scenarios", async () => {
     const parsed = parseScenario(scenario);
     const reordered = {
       ...parsed,
@@ -230,58 +275,64 @@ describe("application contracts", () => {
   });
 
   it("accepts capability manifests and rejects duplicate capability paths", () => {
-    expect(() =>
-      solverCapabilityManifestSchema.parse({
-        protocolVersion: PROTOCOL_VERSION,
-        solverVersion: "solver-v1",
-        modelVersion: "model-v1",
-        deterministic: true,
-        supportedScenarioPaths: ["scenario.entry.speed", "scenario.jump.gap"],
-        supportedOutputs: ["contactImpulse", "jointTorque"],
-        ccd: true,
-        contactImpulse: true,
-        motorWork: true,
-        jointTorque: false
-      })
-    ).not.toThrow();
+    expect(() => solverCapabilityManifestSchema.parse(capabilities)).not.toThrow();
 
     expect(() =>
       solverCapabilityManifestSchema.parse({
-        protocolVersion: PROTOCOL_VERSION,
-        solverVersion: "solver-v1",
-        modelVersion: "model-v1",
-        deterministic: true,
-        supportedScenarioPaths: ["scenario.entry.speed", "scenario.entry.speed"],
-        supportedOutputs: ["contactImpulse"],
-        ccd: true,
-        contactImpulse: true,
-        motorWork: true,
-        jointTorque: false
+        ...capabilities,
+        supportedScenarioPaths: ["scenario.entry.speed", "scenario.entry.speed"]
+      })
+    ).toThrow();
+    expect(() =>
+      solverCapabilityManifestSchema.parse({
+        ...capabilities,
+        supportedOutputs: ["contactImpulse", "contactImpulse"]
       })
     ).toThrow();
   });
 
-  it("accepts run artifacts with metadata and source", () => {
+  it("requires the two-body capability flags and rejects retired actuator flags", () => {
+    for (const flag of ["ccd", "contactImpulse", "riderCoupling", "riderInstinct", "suspension"]) {
+      const { [flag]: _removed, ...missing } = capabilities as Record<string, unknown>;
+      expect(() => solverCapabilityManifestSchema.parse(missing), flag).toThrow();
+    }
     expect(() =>
-      runArtifactSchema.parse({
-        runId: manifest.runId,
-        createdAt: "2026-08-25T00:00:00.000Z",
-        scenarioSnapshot: scenario,
-        scenarioHash: manifest.scenarioHash,
-        manifest,
-        model: {
-          scenarioSchemaVersion: 1,
-          solverVersion: manifest.solverVersion,
-          modelVersion: "model-v1",
-          assumptionsId: "assumptions-v1",
-          unitSystemId: "si-v1",
-          metricDefinitionVersion: "metrics-v1"
-        },
-        frameBuffer: new ArrayBuffer(16),
-        telemetryBuffer: new ArrayBuffer(16),
-        source: "solver"
-      })
-    ).not.toThrow();
+      solverCapabilityManifestSchema.parse({ ...capabilities, motorWork: true })
+    ).toThrow();
+    expect(() =>
+      solverCapabilityManifestSchema.parse({ ...capabilities, jointTorque: false })
+    ).toThrow();
+    expect(() =>
+      solverCapabilityManifestSchema.parse({ ...capabilities, protocolVersion: 3 })
+    ).toThrow();
+  });
+
+  it("accepts run artifacts with metadata and source", () => {
+    const artifact = {
+      runId: manifest.runId,
+      createdAt: "2026-08-25T00:00:00.000Z",
+      scenarioSnapshot: scenario,
+      scenarioHash: manifest.scenarioHash,
+      manifest,
+      model: {
+        scenarioSchemaVersion: SCENARIO_SCHEMA_VERSION,
+        solverVersion: manifest.solverVersion,
+        modelVersion: "model-v1",
+        assumptionsId: "assumptions-v1",
+        unitSystemId: "si-v1",
+        metricDefinitionVersion: "metrics-v1"
+      },
+      frameBuffer: new ArrayBuffer(FRAME_STRIDE_FLOAT32 * Float32Array.BYTES_PER_ELEMENT),
+      telemetryBuffer: new ArrayBuffer(TELEMETRY_CHANNELS.length * Float32Array.BYTES_PER_ELEMENT),
+      source: "solver"
+    };
+    expect(runArtifactSchema.parse(artifact).manifest.landing.status).toBe("airborne-at-end");
+    expect(() =>
+      runArtifactSchema.parse({ ...artifact, model: { ...artifact.model, solverVersion: "x" } })
+    ).toThrow(/model.solverVersion must match/);
+    expect(() =>
+      runArtifactSchema.parse({ ...artifact, runId: "11111111-1111-4111-8111-111111111111" })
+    ).toThrow(/runId must match/);
   });
 
   it("accepts presets, validation checks, and session references", () => {

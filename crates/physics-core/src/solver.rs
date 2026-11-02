@@ -328,13 +328,18 @@ fn build_phases(simulation: &Simulation, lip_x: f32, landing_end_x: f32) -> Vec<
     if touchdown_frame > takeoff_frame + 1 {
         phases.push(phase("flight", takeoff_frame + 1, touchdown_frame - 1));
     }
-    phases.push(phase("landing", touchdown_frame, touchdown_frame));
-    if let Some(rollout) = frames
+    let rollout = frames
         .iter()
         .enumerate()
         .skip(touchdown_frame + 1)
-        .find_map(|(index, frame)| (frame.bike_origin.x >= landing_end_x).then_some(index))
-    {
+        .find_map(|(index, frame)| (frame.bike_origin.x >= landing_end_x).then_some(index));
+    // Phases tile the whole run: landing lasts until the bike leaves the landing slope.
+    phases.push(phase(
+        "landing",
+        touchdown_frame,
+        rollout.map_or(last, |index| index - 1),
+    ));
+    if let Some(rollout) = rollout {
         phases.push(phase("rollout", rollout, last));
     }
     phases
@@ -438,7 +443,9 @@ fn end_reason_name(reason: EndReason) -> &'static str {
 }
 
 pub fn solve_scenario(scenario: &Scenario, run_id: &str) -> Result<SolveOutput, String> {
-    scenario.validate()?;
+    scenario
+        .validate()
+        .map_err(|err| format!("invalid scenario: {err}"))?;
     if !validate_design(scenario)?.can_solve {
         return Err("design-invalid".to_string());
     }

@@ -168,6 +168,7 @@ describe("workbench page", () => {
           save: vi.fn(async (artifact) => artifact),
           replaceSolution: vi.fn(async (_runId, artifact) => artifact as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }
@@ -234,6 +235,7 @@ describe("workbench page", () => {
           save: vi.fn(async (artifact) => artifact),
           replaceSolution: vi.fn(async (_runId, artifact) => artifact as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }
@@ -330,6 +332,7 @@ describe("workbench page", () => {
           save: vi.fn(async (saved) => saved),
           replaceSolution: vi.fn(async (_runId, saved) => saved as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }
@@ -375,6 +378,7 @@ describe("workbench page", () => {
           save: vi.fn(async (saved) => saved),
           replaceSolution: vi.fn(async (_runId, saved) => saved as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }
@@ -385,12 +389,14 @@ describe("workbench page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Solve run" }));
     // Terrain is live, so its readiness no longer implies the solve finished.
     await waitFor(() => expect(solve).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByText(/contact 0.0 N · touchdown 1/i)).toBeVisible());
+    const readout = () =>
+      document.querySelector('[data-od-id="contact-readout"]')?.textContent ?? "";
+    await waitFor(() => expect(readout()).toMatch(/frame 0 · contact 0 N/i));
     await waitFor(() => expect(screen.getByText(/terrain ready/i)).toBeVisible());
     expect(terrain).toHaveBeenCalledWith(expect.any(Object), 0.1);
 
     fireEvent.click(screen.getByRole("button", { name: "Step forward one frame" }));
-    expect(screen.getByText(/contact 150.0 N · touchdown 1/i)).toBeVisible();
+    expect(readout()).toMatch(/frame 1 · contact 150 N/i);
   });
 
   it("renders terrain before any run and refetches only when the jump shape changes", async () => {
@@ -413,6 +419,7 @@ describe("workbench page", () => {
           save: vi.fn(async (saved) => saved),
           replaceSolution: vi.fn(async (_runId, saved) => saved as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }
@@ -436,7 +443,7 @@ describe("workbench page", () => {
     expect(terrain).toHaveBeenCalledTimes(2);
   });
 
-  it("raises the lip angle when height would otherwise create a rollover", async () => {
+  it("re-derives the kicker arc length when the lip height changes", async () => {
     renderWithProviders(<WorkbenchPage />, {
       services: {
         solverGateway: {
@@ -457,7 +464,8 @@ describe("workbench page", () => {
 
     await waitFor(() => {
       const jump = useAppStore.getState().scenario.scenario?.jump;
-      expect(jump?.lipAngle ?? 0).toBeGreaterThanOrEqual(Math.atan((1.5 * 2) / 1.7));
+      expect(jump?.lipHeight).toBe(2);
+      expect(jump?.transitionLength ?? 0).toBeCloseTo(2 / Math.tan((jump?.lipAngle ?? 1) / 2), 6);
     });
   });
 
@@ -524,6 +532,7 @@ describe("workbench page", () => {
           save: vi.fn(async (saved) => saved),
           replaceSolution: vi.fn(async (_runId, saved) => saved as RunArtifact),
           get: vi.fn().mockResolvedValue(null),
+          getStored: vi.fn().mockResolvedValue(null),
           list: vi.fn().mockResolvedValue([
             {
               runId: legacyRunId,
@@ -566,6 +575,7 @@ describe("workbench page", () => {
           save: vi.fn(async (saved) => saved),
           replaceSolution: vi.fn(async (_runId, saved) => saved as RunArtifact),
           get: vi.fn().mockRejectedValue(new Error("Stored scenario snapshot is invalid")),
+          getStored: vi.fn().mockRejectedValue(new Error("Stored scenario snapshot is invalid")),
           list: vi.fn().mockResolvedValue([]),
           remove: vi.fn().mockResolvedValue(undefined)
         }

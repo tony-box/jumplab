@@ -53,6 +53,8 @@ pub fn capabilities() -> Capabilities {
             "scenario.bike.geometry",
             "scenario.poseClip",
             "scenario.solver.riderInstinct",
+            "scenario.solver.riderInstinct.maxAngle",
+            "scenario.solver.riderInstinct.maxOffset",
         ]
         .into_iter()
         .map(String::from)

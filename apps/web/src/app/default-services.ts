@@ -4,7 +4,7 @@ import {
   scenarioSchema,
   type RunArtifact
 } from "../../../../packages/schema/src/index";
-import fixtureRunJson from "../../../../tests/fixtures/run-results/standard-v1.json";
+import fixtureRunJson from "../../../../tests/fixtures/run-results/standard-v2.json";
 import standardScenarioJson from "../../../../tests/fixtures/scenarios/standard-v1.json";
 import validationSuiteJson from "../../../../tests/fixtures/validation/suite-v1.json";
 
@@ -69,6 +69,21 @@ const createRunArtifactRepository = (): AppServices["runArtifactRepository"] => 
     get: async (runId) => {
       const record = await repositories.runs.get(runId);
       return toArtifact(record);
+    },
+    getStored: async (runId) => {
+      const record = await repositories.runs.get(runId);
+      if (!record?.scenarioSnapshot) return null;
+      return {
+        runId: record.runId,
+        createdAt: record.createdAt,
+        scenarioSnapshot: record.scenarioSnapshot as unknown,
+        scenarioHash: record.scenarioHash,
+        model: record.model,
+        manifest: record.result as unknown,
+        frameBuffer: record.frameBuffer,
+        telemetryBuffer: record.telemetryBuffer,
+        source: record.source
+      };
     },
     list: async () => {
       const records = await repositories.runs.list();

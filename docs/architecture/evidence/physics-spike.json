@@ -1,123 +1,69 @@
 {
-  "artifactVersion": 2,
-  "benchmarkVersion": 1,
-  "capturedAt": "2026-09-02T18:49:19.185Z",
+  "artifactVersion": 3,
+  "benchmarkVersion": 2,
+  "capturedAt": "2026-11-02T22:41:02.161Z",
   "status": "pass",
   "environment": {
     "platform": "win32",
     "arch": "x64",
     "node": "v24.14.1"
   },
-  "capabilities": {
-    "wasmPack": {
-      "available": true,
-      "status": "pass"
-    },
-    "parityTargets": [
-      "native-rust",
-      "node-wasm",
-      "chromium",
-      "firefox",
-      "webkit"
-    ]
-  },
-  "checks": {
-    "nativeWasmBrowserParity": "pass",
-    "deterministicRepeatRuns": "pass",
-    "timestepConvergence": "pass",
-    "zeroDragFrictionUnmodeledDamping": "pass",
-    "measuredTelemetry": "pass"
-  },
-  "physicsEvidence": {
-    "parity": {
-      "status": "pass",
-      "source": "tests/parity/physics-parity.spec.ts",
-      "outputs": [
-        "resultHash",
-        "PoseSample",
-        "EntrySpeedWindow"
-      ]
-    },
-    "determinism": {
-      "status": "pass",
-      "source": "crates/physics-core/tests/determinism/golden.rs"
-    },
-    "convergence": {
-      "status": "pass",
-      "source": "crates/physics-core/tests/convergence/fixed_step.rs"
-    },
-    "exclusions": {
-      "status": "pass",
-      "source": "crates/physics-core/tests/regression/exclusions.rs"
-    },
-    "telemetry": {
-      "status": "pass",
-      "source": "crates/physics-core/src/telemetry.rs"
-    }
-  },
   "runs": 20,
   "solve": {
     "samplesMs": [
-      789.8265999999985,
-      597.8812999999973,
-      576.3795000000027,
-      574.8614999999991,
-      593.2652000000016,
-      614.1699000000008,
-      615.3040000000001,
-      561.1470000000008,
-      576.4503000000004,
-      573.8414999999986,
-      584.3041000000012,
-      584.8878000000004,
-      599.552300000003,
-      579.3073999999979,
-      589.299500000001,
-      562.1384999999973,
-      576.4961999999978,
-      560.1844999999994,
-      589.0692000000017,
-      590.6981999999989
+      498.0596999999998,
+      341.57760000000053,
+      343.1212999999989,
+      366.95920000000115,
+      348.239800000003,
+      341.3122000000003,
+      355.424500000001,
+      336.15239999999903,
+      359.85259999999835,
+      353.3186999999998,
+      347.22699999999895,
+      346.78809999999794,
+      357.3872999999985,
+      346.97019999999975,
+      355.02609999999913,
+      344.37539999999717,
+      342.4343999999983,
+      339.78039999999964,
+      346.01850000000195,
+      346.270999999997
     ],
-    "p50Ms": 584.3041000000012,
-    "p95Ms": 615.3040000000001,
+    "p50Ms": 346.78809999999794,
+    "p95Ms": 366.95920000000115,
+    "budgetMs": 1000,
     "status": "pass"
-  },
-  "progress": {
-    "monotonic": true,
-    "samples": [
-      0,
-      1
-    ],
-    "status": "pass",
-    "notes": "Worker solve lifecycle emits start and completion fractions in monotonic order."
   },
   "cancel": {
     "samplesMs": [
-      2.373599999998987,
-      1.4887000000016997,
-      1.5328000000008615,
-      1.823499999998603,
-      1.7736999999979162,
-      1.6529999999984284,
-      1.631199999999808,
-      2.4543999999987136,
-      1.549699999999575,
-      1.9891999999999825,
-      1.6728999999977532,
-      1.4598000000005413,
-      1.598100000002887,
-      1.6432000000022526,
-      1.8819000000003143,
-      1.5275000000001455,
-      1.9495999999999185,
-      1.9675999999999476,
-      1.9466000000029453,
-      1.5576000000000931
+      2.897499999999127,
+      1.8640999999988708,
+      1.691900000001624,
+      1.7331999999987602,
+      2.2893000000003667,
+      1.650499999999738,
+      1.6885999999976775,
+      1.7628999999978987,
+      1.926499999997759,
+      2.0882000000019616,
+      2.3826999999982945,
+      1.5412000000033004,
+      1.6739999999990687,
+      1.5957999999991443,
+      1.6925999999984924,
+      1.5851000000002387,
+      1.8997999999992317,
+      1.735899999999674,
+      1.9105999999992491,
+      1.6882000000005064
     ],
-    "p50Ms": 1.6529999999984284,
-    "p95Ms": 2.373599999998987,
+    "p50Ms": 1.7331999999987602,
+    "p95Ms": 2.3826999999982945,
+    "budgetMs": 250,
     "status": "pass",
-    "mechanism": "Forced termination of an active worker executing the real Node WASM solve."
+    "mechanism": "Terminating a worker thread while it runs the real Node WASM solve."
   }
 }

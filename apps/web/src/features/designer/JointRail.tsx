@@ -57,8 +57,7 @@ export const JointRail = ({
       jointName[0]?.toUpperCase() + jointName.slice(1),
       toDegrees(joint.min),
       toDegrees(joint.max),
-      toDegrees(rom),
-      `${joint.tauMax.toFixed(0)} N.m`
+      toDegrees(rom)
     ];
   });
 
@@ -149,7 +148,7 @@ export const JointRail = ({
         <div data-od-id="rom-table">
           <DataTable
             caption="Rider joint limits and range of motion"
-            columns={["Joint", "Min", "Max", "ROM", "Tau max"]}
+            columns={["Joint", "Min", "Max", "ROM"]}
             rows={romRows}
           />
         </div>

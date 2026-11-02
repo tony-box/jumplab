@@ -78,18 +78,16 @@ const createFrameBuffer = (fixture: RunResult, scenario?: Scenario): ArrayBuffer
 };
 
 const createTelemetryBuffer = (fixture: RunResult): ArrayBuffer => {
-  const values = new Float32Array(fixture.telemetry.sampleCount);
-
-  for (const channel of fixture.telemetry.channels) {
-    for (let index = 0; index < channel.count; index += 1) {
-      const fraction = channel.count <= 1 ? 0 : index / (channel.count - 1);
-      values[channel.offset + index] = fraction;
+  const { sampleCount, strideFloat32, channels } = fixture.telemetry;
+  const values = new Float32Array(sampleCount * strideFloat32);
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const fraction = sampleCount <= 1 ? 0 : sample / (sampleCount - 1);
+    for (const channel of channels) {
+      values[sample * strideFloat32 + channel.offset] = fraction;
     }
   }
-
   return values.buffer;
 };
-
 export const createFixtureWorkerRuntime = (
   fixture: RunResult,
   options: FixtureWorkerOptions = {}
@@ -108,37 +106,13 @@ export const createFixtureWorkerRuntime = (
             solverVersion: fixture.solverVersion,
             modelVersion: "fixture-v1",
             deterministic: true,
-            supportedScenarioPaths: [
-              "scenario.jump.kind",
-              "scenario.jump.lipHeight",
-              "scenario.jump.lipAngle",
-              "scenario.jump.transitionLength",
-              "scenario.jump.gap",
-              "scenario.jump.stepDelta",
-              "scenario.jump.landingAngle",
-              "scenario.jump.landingLength",
-              "scenario.jump.rollout",
-              "scenario.entry.speed",
-              "scenario.entry.startX",
-              "scenario.rider.height",
-              "scenario.rider.mass",
-              "scenario.bike.wheelbase",
-              "scenario.bike.mass",
-              "scenario.bike.fork.travel",
-              "scenario.bike.fork.sag"
-            ],
-            supportedOutputs: [
-              "height",
-              "velocity",
-              "pitch",
-              "contactImpulse",
-              "motorWork",
-              "jointTorque"
-            ],
+            supportedScenarioPaths: ["scenario.jump.kind", "scenario.entry.speed"],
+            supportedOutputs: ["height", "velocity", "pitch", "contactImpulse"],
             ccd: true,
             contactImpulse: true,
-            motorWork: true,
-            jointTorque: false
+            riderCoupling: false,
+            riderInstinct: false,
+            suspension: false
           }
         }
       ];
@@ -152,7 +126,7 @@ export const createFixtureWorkerRuntime = (
             type: "error",
             requestId: command.requestId,
             runId: command.runId,
-            code: "internal_error",
+            code: "internal-error",
             message: "Configured fixture solve failure",
             details: { fixture: true },
             recoverable: true
@@ -160,20 +134,7 @@ export const createFixtureWorkerRuntime = (
         ];
       }
 
-      const progress = [0, 1, 2, 3, 4].map(
-        (completedSteps): WorkerEvent => ({
-          protocolVersion: PROTOCOL_VERSION,
-          type: "progress",
-          requestId: command.requestId,
-          runId: command.runId,
-          completedSteps,
-          totalSteps: 4,
-          fraction: completedSteps / 4
-        })
-      );
-
       return [
-        ...progress,
         {
           protocolVersion: PROTOCOL_VERSION,
           type: "result",
@@ -191,6 +152,7 @@ export const createFixtureWorkerRuntime = (
             metrics: Object.fromEntries(
               Object.entries(fixture.metrics).map(([name, metric]) => [name, { ...metric }])
             ),
+            landing: { ...fixture.landing, reasons: [...fixture.landing.reasons] },
             telemetry: {
               ...fixture.telemetry,
               channels: fixture.telemetry.channels.map((channel) => ({ ...channel }))

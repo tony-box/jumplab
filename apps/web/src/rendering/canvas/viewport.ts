@@ -61,10 +61,10 @@ export const configureCanvas = (
   canvas: HTMLCanvasElement,
   viewport: CanvasViewport
 ): CanvasRenderingContext2D => {
-  canvas.width = viewport.backingWidth;
-  canvas.height = viewport.backingHeight;
-  canvas.style.width = `${viewport.cssWidth}px`;
-  canvas.style.height = `${viewport.cssHeight}px`;
+  // Only the backing store is sized here. Setting an inline CSS size would pin the canvas and
+  // stop it from following its container when the layout changes.
+  if (canvas.width !== viewport.backingWidth) canvas.width = viewport.backingWidth;
+  if (canvas.height !== viewport.backingHeight) canvas.height = viewport.backingHeight;
   const context = canvas.getContext("2d");
   if (!context) {
     throw new Error("Canvas 2D context is unavailable");
