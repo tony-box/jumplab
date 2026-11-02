@@ -18,7 +18,9 @@ describe("spike input contracts", () => {
       expect(control.minimum).toBeLessThan(control.maximum);
       expect(control.physicalQuantity.length).toBeGreaterThan(2);
       expect(control.explanation.length).toBeGreaterThan(20);
-      expect(control.scenarioPath).toMatch(/^scenario\.(jump|entry|rider|bike|solver\.riderInstinct)\./);
+      expect(control.scenarioPath).toMatch(
+        /^scenario\.(jump|entry|rider|bike|solver\.riderInstinct)\./
+      );
     }
   });
 

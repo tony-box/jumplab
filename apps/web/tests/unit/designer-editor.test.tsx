@@ -442,19 +442,22 @@ describe("pose editor", () => {
     expect(hip).toHaveAttribute("max", "1.6");
     expect(spine).toHaveAttribute("min", "-1");
     expect(spine).toHaveAttribute("max", "2");
-    await waitFor(() => {
-      const normalized = (useAppStore.getState().scenario.scenario as Scenario).poseClip.keys[0];
-      expect(normalized?.targets).toEqual({ knee: 2.2, hip: 1.6, spine: 2 });
-    });
+    // Opening the editor shows clamped values without rewriting the stored scenario.
+    expect(
+      (useAppStore.getState().scenario.scenario as Scenario).poseClip.keys[0]?.targets
+    ).toEqual({ knee: 2.5, hip: 2.5, spine: 2.5 });
     expect(knee).toHaveValue("2.2");
     expect(hip).toHaveValue("1.6");
     expect(spine).toHaveValue("2");
 
     fireEvent.change(hip, { target: { value: "3" } });
+    expect(hip).toHaveValue("1.6");
+    // The first real edit writes the clamped clip back.
+    fireEvent.change(hip, { target: { value: "1.2" } });
     await waitFor(() =>
       expect(
-        (useAppStore.getState().scenario.scenario as Scenario).poseClip.keys[0]?.targets.hip
-      ).toBe(1.6)
+        (useAppStore.getState().scenario.scenario as Scenario).poseClip.keys[0]?.targets
+      ).toEqual({ knee: 2.2, hip: 1.2, spine: 2 })
     );
   });
 

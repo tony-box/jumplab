@@ -94,9 +94,17 @@ export const feasiblePoseLimits = async (
  */
 export const poseEnvelopeLimits = async (
   declared: PoseFeasibleLimits,
-  probe: PoseProbe,
-  gridSteps = 6
+  unboundedProbe: PoseProbe,
+  gridSteps = 6,
+  maxProbes = 1_200
 ): Promise<PoseFeasibleLimits | null> => {
+  // Every probe is a round trip to the physics worker, so the search has a hard budget.
+  let probes = 0;
+  const probe: PoseProbe = (targets) => {
+    probes += 1;
+    if (probes > maxProbes) throw new Error("pose envelope probe budget exhausted");
+    return unboundedProbe(targets);
+  };
   const joints: JointName[] = ["knee", "hip", "spine"];
   const axisOf = (joint: JointName) => {
     const { min, max } = declared[joint];

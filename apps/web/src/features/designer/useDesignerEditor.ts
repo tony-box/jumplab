@@ -199,12 +199,8 @@ export const useDesignerEditor = () => {
     initializedScenarioIdRef.current = scenario.id;
     initialClipRef.current = structuredClone(normalizedClip);
 
-    if (JSON.stringify(normalizedClip) !== JSON.stringify(scenario.poseClip)) {
-      actions.updateScenario((current) =>
-        scenarioSchema.parse({ ...current, poseClip: normalizedClip })
-      );
-    }
-
+    // Opening the editor never rewrites the scenario; the normalized clip is only written
+    // back by the first real edit, so merely viewing a run does not mark it changed.
     setKeyframes(editable);
     setSelectedKeyId(selected);
     setPlayheadS(editable[0]?.s ?? 0);
@@ -646,6 +642,12 @@ export const useDesignerEditor = () => {
     [scenario]
   );
 
+  // Limits belong to one key; never show the previous key's limits on the next one.
+  const selectedKeyIdForLimits = selectedKey?.id ?? null;
+  useEffect(() => {
+    setFeasibleLimits(null);
+  }, [selectedKeyIdForLimits]);
+
   useEffect(() => {
     const declared = declaredRanges();
     // Limits describe the pose on screen, so they follow its sample rather
@@ -697,20 +699,25 @@ export const useDesignerEditor = () => {
     if (envelopeSignatureRef.current === signature) {
       return;
     }
-    envelopeSignatureRef.current = signature;
 
     let active = true;
-    const probe = probeFor(selectedKey);
-    // Deferred so the interactive per-edit limits resolve first.
+    const keyProbe = probeFor(selectedKey);
+    // A superseded search stops instead of queueing hundreds of stale probes in the worker.
+    const probe = (targets: Record<JointName, number>) => {
+      if (!active) return Promise.reject(new Error("pose envelope superseded"));
+      return keyProbe(targets);
+    };
+    // Deferred so the interactive per-edit limits resolve first. The signature is recorded
+    // only once the envelope exists, so an edit that cancels this run does not skip it.
     const timer = setTimeout(() => {
       void poseEnvelopeLimits(declared, probe)
         .then((envelope) => {
-          if (!active) return;
-          if (envelope) setEnvelopeLimits(envelope);
-          else envelopeSignatureRef.current = null;
+          if (!active || !envelope) return;
+          envelopeSignatureRef.current = signature;
+          setEnvelopeLimits(envelope);
         })
         .catch(() => {
-          envelopeSignatureRef.current = null;
+          // Leave the previous envelope; the next edit retries.
         });
     }, 400);
 
