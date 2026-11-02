@@ -4,12 +4,13 @@ import suiteFixture from "../../../../tests/fixtures/validation/suite-v1.json";
 import {
   createValidationRunnerFromSuiteFixture,
   reconcileValidationSummary,
+  REFERENCE_FIXTURE_DISCLOSURE,
   type ValidationSuiteSnapshot
 } from "../../src/features/validation/validation-runner";
 
 const DT_SHIPPED = 1 / 240;
-const DT_FAILURE = 1 / 480;
-const DT_BUDGET = 1 / 60;
+const DT_FINE = 1 / 480;
+const DT_COARSE = 1 / 60;
 
 describe("validation runner", () => {
   it("emits deterministic running transitions, settles rows monotonically, and reconciles summary exactly", async () => {
@@ -57,32 +58,35 @@ describe("validation runner", () => {
     );
   });
 
-  it("returns failed terminal state for unrecoverable runner failure fixture", async () => {
+  it("replays every recorded profile to completion without injected failures", async () => {
     const runner = createValidationRunnerFromSuiteFixture(suiteFixture);
-    const result = await runner.run(DT_FAILURE);
 
-    expect(result.status).toBe("failed");
-    expect(result.error).toMatch(/fixture/i);
-    expect(result.summary.running).toBe(0);
-    expect(result.summary.checks).toBe(
-      result.summary.passing + result.summary.failing + result.summary.awaitingCore
-    );
-    expect(result.summary.passing).toBeLessThan(result.summary.checks + 1);
+    for (const dt of [DT_FINE, DT_COARSE]) {
+      const result = await runner.run(dt);
+
+      expect(result.status).toBe("completed");
+      expect(result.error).toBeNull();
+      expect(result.summary.running).toBe(0);
+      expect(result.summary.budgetExceeded).toBe(0);
+      expect(result.rows.some((row) => row.status === "budget-exceeded")).toBe(false);
+      expect(result.summary.checks).toBe(
+        result.summary.passing + result.summary.failing + result.summary.awaitingCore
+      );
+
+      const pending = result.rows.filter((row) => row.category === "pending");
+      expect(pending.every((row) => row.status === "awaiting-core")).toBe(true);
+      expect(pending.every((row) => row.owner !== null && row.blockedGate !== null)).toBe(true);
+    }
   });
 
-  it("returns non-passing budget-exceeded terminal state and preserves pending gates", async () => {
+  it("labels results as a recorded reference fixture rather than a live measurement", async () => {
     const runner = createValidationRunnerFromSuiteFixture(suiteFixture);
-    const result = await runner.run(DT_BUDGET);
+    const result = await runner.run(DT_SHIPPED);
 
-    expect(result.status).toBe("budget-exceeded");
-    expect(result.summary.running).toBe(0);
-    expect(result.rows.some((row) => row.status === "budget-exceeded")).toBe(true);
-    expect(result.summary.checks).toBe(
-      result.summary.passing + result.summary.failing + result.summary.awaitingCore
-    );
-
-    const pending = result.rows.filter((row) => row.category === "pending");
-    expect(pending.every((row) => row.status === "awaiting-core")).toBe(true);
-    expect(pending.every((row) => row.owner !== null && row.blockedGate !== null)).toBe(true);
+    expect(result.source).toBe("representative-fixture");
+    expect(result.disclosure).toBe(REFERENCE_FIXTURE_DISCLOSURE);
+    expect(result.disclosure).toMatch(/recorded reference fixture/i);
+    expect(result.disclosure).toMatch(/not measured live/i);
+    expect(result.disclosure).not.toMatch(/calculated in this browser/i);
   });
 });

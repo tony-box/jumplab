@@ -1,3 +1,6 @@
+# No host triple, so Linux/macOS CI resolve their native host. On Windows the MSVC host has no
+# link.exe here: run `rustup set default-host x86_64-pc-windows-gnu` so this channel resolves to
+# 1.98.0-x86_64-pc-windows-gnu, or keep a directory override pinned to that exact toolchain.
 [toolchain]
 channel = "1.98.0"
 profile = "default"

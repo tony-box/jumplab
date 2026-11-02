@@ -32,10 +32,6 @@ export type ValidationSuiteFixture = {
   source: "solver" | "representative-fixture";
   budgetMs: number;
   rowDelayMs: number;
-  failureProfileId: string;
-  failureAfterRows: number;
-  budgetProfileId: string;
-  budgetExceededAfterRows: number;
   profiles: FixtureProfile[];
   disclosure: string;
   checks: FixtureCheck[];
@@ -74,6 +70,9 @@ export type ValidationSuiteSnapshot = {
   summary: ValidationSummary;
   error: string | null;
 };
+
+export const REFERENCE_FIXTURE_DISCLOSURE =
+  "These results are replayed from a recorded reference fixture (representative-fixture). They are not measured live in this browser; pending rows keep their owner and blocked gate until core evidence is available.";
 
 export type ValidationRunCallback = (snapshot: ValidationSuiteSnapshot) => void;
 
@@ -191,7 +190,8 @@ const toSnapshot = (
   dt: profile.dt,
   profileLabel: profile.label,
   source: fixture.source,
-  disclosure: fixture.disclosure,
+  disclosure:
+    fixture.source === "representative-fixture" ? REFERENCE_FIXTURE_DISCLOSURE : fixture.disclosure,
   details: Object.fromEntries(
     fixture.checks.map((check) => [check.id, { description: check.description }])
   ),
@@ -211,18 +211,12 @@ export const createValidationRunnerFromSuiteFixture = (fixture: ValidationSuiteF
     let snapshot = toSnapshot(fixture, profile, "running", rows, 0, null);
     onUpdate?.(snapshot);
 
-    const failMode = profile.id === fixture.failureProfileId;
-    const budgetMode = profile.id === fixture.budgetProfileId;
-
-    let settledCount = 0;
-
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
       if (!row) continue;
 
       if (row.category === "pending") {
         row.status = "awaiting-core";
-        settledCount += 1;
         snapshot = toSnapshot(fixture, profile, "running", rows, performance.now() - started, null);
         onUpdate?.(snapshot);
         continue;
@@ -236,55 +230,6 @@ export const createValidationRunnerFromSuiteFixture = (fixture: ValidationSuiteF
       const check = fixture.checks.find((entry) => entry.id === row.id);
       const outcome = check?.outcomes?.[profile.id];
 
-      if (failMode && settledCount >= fixture.failureAfterRows) {
-        row.status = "fail";
-        row.margin = row.margin ?? 0;
-
-        for (const pending of rows) {
-          if (pending.category === "pending") {
-            pending.status = "awaiting-core";
-          }
-          if (pending.status === "running") {
-            pending.status = "fail";
-          }
-        }
-
-        snapshot = toSnapshot(
-          fixture,
-          profile,
-          "failed",
-          rows,
-          Math.max(performance.now() - started, fixture.rowDelayMs * fixture.failureAfterRows),
-          "Fixture-injected unrecoverable runner failure"
-        );
-        onUpdate?.(snapshot);
-        return snapshot;
-      }
-
-      if (budgetMode && settledCount >= fixture.budgetExceededAfterRows) {
-        row.status = "budget-exceeded";
-        for (const remaining of rows) {
-          if (remaining.category === "pending") {
-            remaining.status = "awaiting-core";
-            continue;
-          }
-          if (remaining.status === "idle" || remaining.status === "running") {
-            remaining.status = "budget-exceeded";
-          }
-        }
-
-        snapshot = toSnapshot(
-          fixture,
-          profile,
-          "budget-exceeded",
-          rows,
-          Math.max(fixture.budgetMs + 1, performance.now() - started),
-          "Validation suite exceeded the published runtime budget"
-        );
-        onUpdate?.(snapshot);
-        return snapshot;
-      }
-
       if (outcome) {
         row.status = outcome.status;
         row.margin = toMargin(outcome.measured, outcome.tolerance);
@@ -293,7 +238,6 @@ export const createValidationRunnerFromSuiteFixture = (fixture: ValidationSuiteF
         row.margin = 0;
       }
 
-      settledCount += 1;
       snapshot = toSnapshot(fixture, profile, "running", rows, performance.now() - started, null);
       onUpdate?.(snapshot);
     }

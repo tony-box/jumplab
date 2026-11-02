@@ -74,7 +74,7 @@ describe("shared UI components", () => {
       </>
     );
 
-    expect(screen.getByText("representative")).toBeVisible();
+    expect(screen.getByText("recorded fixture")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
 

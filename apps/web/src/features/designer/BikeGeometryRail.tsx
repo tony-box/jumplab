@@ -1,5 +1,12 @@
 import type { BikeSpec } from "../../../../../packages/schema/src/index";
-import { bikeDimensionGroups, type BikeDimensionPath } from "./bike-dimensions";
+import { handleRovingKeyDown, NumberInput, rovingTabIndex } from "../../components/ui";
+import { bikeDimensionGroupsFor, type BikeDimensionPath } from "./bike-dimensions";
+
+const frameTypes = [
+  "rigid",
+  "hardtail",
+  "full"
+] as const satisfies readonly BikeSpec["frameType"][];
 
 type BikeGeometryRailProps = {
   bike: BikeSpec;
@@ -25,13 +32,29 @@ export const BikeGeometryRail = ({
   >
     <section className="control-group">
       <h2>Frame type</h2>
-      <div className="segmented" role="radiogroup" aria-label="Frame type">
-        {(["rigid", "hardtail", "full"] as const).map((frameType) => (
+      <div
+        className="segmented"
+        role="radiogroup"
+        aria-label="Frame type"
+        onKeyDown={(event) =>
+          handleRovingKeyDown(event, '[role="radio"]', (item) => {
+            const next = frameTypes.find((frameType) => frameType === item.dataset.value);
+            if (next && next !== bike.frameType) onFrameTypeChange(next);
+          })
+        }
+      >
+        {frameTypes.map((frameType, index) => (
           <button
             key={frameType}
             type="button"
             role="radio"
+            data-value={frameType}
             aria-checked={bike.frameType === frameType}
+            tabIndex={rovingTabIndex(
+              bike.frameType === frameType,
+              index,
+              frameTypes.includes(bike.frameType)
+            )}
             onClick={() => onFrameTypeChange(frameType)}
           >
             {frameType === "full"
@@ -49,9 +72,10 @@ export const BikeGeometryRail = ({
       </p>
     </section>
 
-    {bikeDimensionGroups.map((group) => (
+    {bikeDimensionGroupsFor(bike).map((group) => (
       <section className="control-group" key={group.id}>
         <h2>{group.label}</h2>
+        {group.note ? <p className="rail-note">{group.note}</p> : null}
         {group.fields.map((field) => {
           const fieldIssues = issues.filter((issue) => issue.fields.includes(field.path));
           const issueId = `bike-dimension-${field.path.replaceAll(".", "-")}-issue`;
@@ -59,10 +83,9 @@ export const BikeGeometryRail = ({
             <label className="bike-number-field" key={field.path}>
               <span>{field.label}</span>
               <span className="bike-number-input">
-                <input
+                <NumberInput
                   id={`bike-dimension-${field.path.replaceAll(".", "-")}`}
                   data-od-id={`bike-dimension-${field.path}`}
-                  type="number"
                   value={values[field.path]}
                   min={field.minimum}
                   max={field.maximum}
@@ -70,7 +93,7 @@ export const BikeGeometryRail = ({
                   aria-label={field.label}
                   aria-invalid={fieldIssues.length > 0}
                   aria-describedby={fieldIssues.length > 0 ? issueId : undefined}
-                  onChange={(event) => onValueChange(field.path, event.currentTarget.valueAsNumber)}
+                  onValueChange={(value) => onValueChange(field.path, value)}
                 />
                 <small>{field.unit}</small>
               </span>

@@ -1,3 +1,5 @@
+import { handleRovingKeyDown, rovingTabIndex } from "./roving-focus";
+
 type Option = { value: string; label: string };
 
 type SingleOptionProps = {
@@ -14,21 +16,36 @@ export const SegmentedControl = ({
   value,
   onChange,
   disabled
-}: SingleOptionProps) => (
-  <div className="segmented" role="group" aria-label={label}>
-    {options.map((option) => (
-      <button
-        key={option.value}
-        type="button"
-        disabled={disabled}
-        aria-pressed={option.value === value}
-        onClick={() => onChange(option.value)}
-      >
-        {option.label}
-      </button>
-    ))}
-  </div>
-);
+}: SingleOptionProps) => {
+  const anySelected = options.some((option) => option.value === value);
+  return (
+    <div
+      className="segmented"
+      role="group"
+      aria-label={label}
+      onKeyDown={(event) =>
+        handleRovingKeyDown(event, "button[data-value]", (item) => {
+          const next = item.dataset.value;
+          if (next !== undefined && next !== value) onChange(next);
+        })
+      }
+    >
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          data-value={option.value}
+          disabled={disabled}
+          aria-pressed={option.value === value}
+          tabIndex={rovingTabIndex(option.value === value, index, anySelected)}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 type ChipSetProps = {
   label: string;
@@ -59,40 +76,5 @@ export const ChipSet = ({ label, options, values, onChange }: ChipSetProps) => (
         </button>
       );
     })}
-  </div>
-);
-
-type TabsProps = SingleOptionProps;
-
-export const Tabs = ({ label, options, value, onChange }: TabsProps) => (
-  <div
-    className="tabs"
-    role="tablist"
-    aria-label={label}
-    onKeyDown={(event) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
-      const currentIndex = options.findIndex((option) => option.value === value);
-      const delta = event.key === "ArrowRight" ? 1 : -1;
-      const next = options[(currentIndex + delta + options.length) % options.length];
-      if (next) {
-        onChange(next.value);
-        const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
-        buttons[(currentIndex + delta + options.length) % options.length]?.focus();
-      }
-    }}
-  >
-    {options.map((option) => (
-      <button
-        key={option.value}
-        type="button"
-        role="tab"
-        aria-selected={option.value === value}
-        tabIndex={option.value === value ? 0 : -1}
-        onClick={() => onChange(option.value)}
-      >
-        {option.label}
-      </button>
-    ))}
   </div>
 );

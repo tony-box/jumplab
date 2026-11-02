@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export * from "./canonical";
-export * from "./decision";
 export * from "./input-contract";
 export * from "./input-contracts/spike-controls";
 export * from "./application";

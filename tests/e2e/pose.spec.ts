@@ -194,7 +194,7 @@ test("pose listbox keyboard, focus retention, editing, constraints, and apply-to
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
   const canvas = page.locator('[data-od-id="pose-canvas"] canvas');
-  const canvasBox = await canvas.boundingBox();
+  let canvasBox = await canvas.boundingBox();
   const handleAt = async (joint: string) =>
     (await page.evaluate(() => window.__BIKE_JUMPER_TEST__?.poseHandlePositions() ?? [])).find(
       (candidate) => candidate.joint === joint
@@ -216,6 +216,8 @@ test("pose listbox keyboard, focus retention, editing, constraints, and apply-to
   await canvas.click({ position: { x: 12, y: 12 } });
   await expect(page.getByLabel("Hip")).toHaveValue(beforeEmptyClick);
 
+  // The canvas follows its container, so measure it again right before dragging.
+  canvasBox = await canvas.boundingBox();
   const handle = await handleAt("hip");
   expect(handle).toBeTruthy();
   await page.mouse.move((canvasBox?.x ?? 0) + handle!.x, (canvasBox?.y ?? 0) + handle!.y);

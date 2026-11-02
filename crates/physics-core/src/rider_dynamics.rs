@@ -288,7 +288,9 @@ fn project_hip(
 }
 
 /// Absolute knee and hip segment angles that place the hip at `hip` with the foot on the pedal.
-/// The knee takes the forward solution, matching the riding posture.
+/// The knee takes the solution clockwise of the pedal-to-hip line, which is forward and up in
+/// the riding posture. Choosing by x alone flips the knee below the pedal when a deep crouch
+/// brings the hip level with it.
 fn leg_targets_for_hip(hip: Point2, rider: &RiderSpec, contacts: &BikeContactPoints) -> (f32, f32) {
     let links = rider_link_lengths(rider);
     let pedal = contacts.pedal_contact;
@@ -301,17 +303,11 @@ fn leg_targets_for_hip(hip: Point2, rider: &RiderSpec, contacts: &BikeContactPoi
         .clamp(-1.0, 1.0);
     let offset = ComplexField::acos(cos_at_pedal);
     let base = RealField::atan2(dy, dx);
-    let candidates = [base + offset, base - offset].map(|angle| {
-        Point2::new(
-            pedal.x + ComplexField::cos(angle) * links.shank,
-            pedal.y + ComplexField::sin(angle) * links.shank,
-        )
-    });
-    let knee = if candidates[0].x >= candidates[1].x {
-        candidates[0]
-    } else {
-        candidates[1]
-    };
+    let knee_direction = base - offset;
+    let knee = Point2::new(
+        pedal.x + ComplexField::cos(knee_direction) * links.shank,
+        pedal.y + ComplexField::sin(knee_direction) * links.shank,
+    );
     let knee_angle = RealField::atan2(knee.x - pedal.x, knee.y - pedal.y);
     let hip_angle = RealField::atan2(hip.x - knee.x, hip.y - knee.y);
     (knee_angle, hip_angle)

@@ -362,6 +362,7 @@ export const WorkbenchPage = () => {
             frame={frame}
             baselineFrame={baselineFrame}
             frameIndex={frameIndex}
+            playing={playback.playing}
             run={workbench.frameView ? workbench.run : null}
             terrainProfile={workbench.terrain.profile}
             terrainState={workbench.terrain.state}

@@ -6,11 +6,14 @@ test-results
 apps/web/dist
 apps/web/dev-dist
 docs/architecture/evidence/benchmark-results.json
+docs/architecture/evidence/browser-offline-spike.json
 docs/architecture/evidence/browser-matrix.json
 docs/architecture/evidence/compatibility-report.json
 docs/architecture/evidence/dependency-check.json
+docs/architecture/evidence/physics-spike.json
 docs/architecture/evidence/quickstart-validation.json
 docs/architecture/evidence/sbom.cdx.json
+docs/architecture/evidence/stack-validation.json
 packages/schema/dist
 crates/**/target
 crates/physics-core/pkg

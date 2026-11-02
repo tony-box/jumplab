@@ -25,6 +25,7 @@ export type BikeDimensionField = {
 export type BikeDimensionGroup = {
   id: string;
   label: string;
+  note?: string;
   fields: BikeDimensionField[];
 };
 
@@ -44,6 +45,33 @@ const deg = (
   maximum: number,
   description: string
 ): BikeDimensionField => ({ path, label, unit: "deg", minimum, maximum, step: 0.1, description });
+
+const suspensionFields = (
+  owner: "fork" | "rearShock",
+  name: string,
+  end: "front" | "rear"
+): BikeDimensionField[] => [
+  mm(`${owner}.travel`, `${name} travel`, 0, 300, `Available ${end} suspension travel.`),
+  mm(`${owner}.sag`, `${name} sag`, 0, 120, `Static ${end} suspension compression.`),
+  {
+    path: `${owner}.springRate`,
+    label: `${name} spring rate`,
+    unit: "N/m",
+    minimum: 1000,
+    maximum: 100000,
+    step: 100,
+    description: `Linear ${end} suspension spring rate.`
+  },
+  {
+    path: `${owner}.damping`,
+    label: `${name} damping`,
+    unit: "N s/m",
+    minimum: 0,
+    maximum: 10000,
+    step: 10,
+    description: `Linear ${end} suspension damping coefficient.`
+  }
+];
 
 export const bikeDimensionGroups: BikeDimensionGroup[] = [
   {
@@ -203,27 +231,10 @@ export const bikeDimensionGroups: BikeDimensionGroup[] = [
   {
     id: "suspension",
     label: "Suspension",
+    note: "Suspension values are stored with the scenario for reference only; suspension is not simulated.",
     fields: [
-      mm("fork.travel", "Fork travel", 0, 300, "Available front suspension travel."),
-      mm("fork.sag", "Fork sag", 0, 150, "Static front suspension compression."),
-      {
-        path: "fork.springRate",
-        label: "Fork spring rate",
-        unit: "N/m",
-        minimum: 1000,
-        maximum: 100000,
-        step: 100,
-        description: "Linear front suspension spring rate."
-      },
-      {
-        path: "fork.damping",
-        label: "Fork damping",
-        unit: "N s/m",
-        minimum: 0,
-        maximum: 10000,
-        step: 10,
-        description: "Linear front suspension damping coefficient."
-      }
+      ...suspensionFields("fork", "Fork", "front"),
+      ...suspensionFields("rearShock", "Rear shock", "rear")
     ]
   }
 ];
@@ -239,3 +250,16 @@ export const fromBikeDisplayValue = (value: number, unit: BikeDisplayUnit): numb
   if (unit === "deg") return (value * Math.PI) / 180;
   return value;
 };
+
+const appliesTo = (field: BikeDimensionField, bike: Pick<BikeSpec, "rearShock">): boolean =>
+  bike.rearShock !== null || !field.path.startsWith("rearShock.");
+
+/** Dimension groups editable for this bike; rear shock fields exist only on full-suspension frames. */
+export const bikeDimensionGroupsFor = (bike: Pick<BikeSpec, "rearShock">): BikeDimensionGroup[] =>
+  bikeDimensionGroups.map((group) => ({
+    ...group,
+    fields: group.fields.filter((field) => appliesTo(field, bike))
+  }));
+
+export const bikeDimensionFieldsFor = (bike: Pick<BikeSpec, "rearShock">): BikeDimensionField[] =>
+  bikeDimensionGroups.flatMap((group) => group.fields).filter((field) => appliesTo(field, bike));

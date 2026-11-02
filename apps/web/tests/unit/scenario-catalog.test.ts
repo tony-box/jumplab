@@ -116,6 +116,66 @@ describe("scenario catalog", () => {
     expect(presets[0]).toEqual(originalPreset);
   });
 
+  it("patches only the preset category's sections onto a supplied working scenario", async () => {
+    const base = fixtures.createScenario();
+    const presets: Preset[] = [
+      makePreset({
+        id: "rider-light",
+        category: "rider",
+        name: "Light rider",
+        patch: { name: "Ignored", rider: { mass: 60 }, jump: { gap: 9 } }
+      }),
+      makePreset({
+        id: "bike-heavy",
+        category: "bike",
+        name: "Heavy bike",
+        patch: { bike: { mass: 18 } }
+      }),
+      makePreset({
+        id: "move-linear",
+        category: "movement",
+        name: "Linear",
+        patch: { poseClip: { interpolation: "linear" }, rider: { mass: 99 } }
+      }),
+      makePreset({
+        id: "jump-big",
+        category: "jump",
+        name: "Big gap",
+        patch: { jump: { gap: 7.5 }, entry: { speed: 9.5 }, rider: { mass: 99 } }
+      })
+    ];
+    const catalog = createScenarioCatalog({
+      baseScenario: fixtures.createScenario(),
+      presets,
+      solverGateway: { analyzeSpeedWindow: vi.fn().mockResolvedValue(measuredWindow) }
+    });
+
+    const rider = await catalog.load("rider-light", base);
+    expect(rider.id).toBe(base.id);
+    expect(rider.name).toBe(base.name);
+    expect(rider.rider.mass).toBe(60);
+    expect(rider.rider.height).toBe(base.rider.height);
+    expect(rider.jump).toEqual(base.jump);
+    expect(rider.bike).toEqual(base.bike);
+    expect(rider.poseClip).toEqual(base.poseClip);
+
+    const bike = await catalog.load("bike-heavy", base);
+    expect(bike.bike.mass).toBe(18);
+    expect(bike.bike.geometry).toEqual(base.bike.geometry);
+    expect(bike.rider).toEqual(base.rider);
+
+    const movement = await catalog.load("move-linear", base);
+    expect(movement.poseClip.interpolation).toBe("linear");
+    expect(movement.poseClip.keys).toEqual(base.poseClip.keys);
+    expect(movement.rider).toEqual(base.rider);
+
+    const jump = await catalog.load("jump-big", base);
+    expect(jump.jump.gap).toBe(7.5);
+    expect(jump.entry.speed).toBe(9.5);
+    expect(jump.rider).toEqual(base.rider);
+    expect(jump.bike).toEqual(base.bike);
+  });
+
   it("duplicates presets into a new scenario identity without mutating the original", async () => {
     const baseScenario = fixtures.createScenario();
     const presets: Preset[] = [

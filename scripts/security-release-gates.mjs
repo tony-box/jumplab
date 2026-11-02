@@ -41,6 +41,11 @@ const scan = (directory) => {
 };
 scan(root);
 if (findings.length > 0) throw new Error(`Potential committed secrets: ${findings.join(", ")}`);
-console.log(
-  "Security release gates passed: lockfile, licenses, SBOM, vulnerabilities, and secret scan."
-);
+const gates = [
+  "lockfile",
+  "licenses",
+  ...(process.argv.includes("--check-only") ? [] : ["SBOM"]),
+  ...(process.argv.includes("--audit") ? ["vulnerabilities"] : []),
+  "secret scan"
+];
+console.log(`Security release gates passed: ${gates.join(", ")}.`);

@@ -4,6 +4,8 @@ export * from "./Callout";
 export * from "./DataDisplay";
 export * from "./DataTable";
 export * from "./Field";
+export * from "./NumberInput";
 export * from "./OptionControls";
+export * from "./roving-focus";
 export * from "./StaleReference";
 export * from "./Status";

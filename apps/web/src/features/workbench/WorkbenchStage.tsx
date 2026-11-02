@@ -24,6 +24,8 @@ type WorkbenchStageProps = {
   frame: WorkbenchFrame;
   baselineFrame: WorkbenchFrame | null;
   frameIndex: number;
+  /** While playing, the frame description is not announced so screen readers aren't flooded. */
+  playing?: boolean;
   run: RunResult | null;
   terrainProfile: TerrainProfile | null;
   terrainState: "idle" | "loading" | "ready" | "error";
@@ -39,6 +41,7 @@ export const WorkbenchStage = ({
   frame,
   baselineFrame,
   frameIndex,
+  playing = false,
   run,
   terrainProfile,
   terrainState,
@@ -306,14 +309,22 @@ export const WorkbenchStage = ({
           pinchDistanceRef.current = null;
         }}
       />
-      <p className="sr-only" aria-live="polite">
-        Frame {frameIndex}: bike at {frame.x.toFixed(2)} metres horizontal and {frame.y.toFixed(2)}{" "}
-        metres high, pitch {((frame.pitch * 180) / Math.PI).toFixed(1)} degrees. Phase {phase}.{" "}
-        {!run
-          ? "No run has been solved yet."
-          : frame.landmarks
-            ? "Rider posture is available for this frame."
-            : "Rider posture is unavailable for this legacy run."}
+      <p className="sr-only" aria-live="polite" data-od-id="stage-description">
+        {playing ? (
+          "Playing."
+        ) : (
+          <>
+            Frame {frameIndex}: bike at {frame.x.toFixed(2)} metres horizontal and{" "}
+            {frame.y.toFixed(2)} metres high, pitch {((frame.pitch * 180) / Math.PI).toFixed(1)}{" "}
+            degrees. Phase {phase}.{" "}
+            {!run
+              ? "No run has been solved yet."
+              : frame.landmarks
+                ? "Rider posture is available for this frame."
+                : "Rider posture is unavailable for this legacy run."}{" "}
+            Bike fit is shown schematically; wheels and rider contacts are measured.
+          </>
+        )}
       </p>
       <div
         className="stage-badge top-left"

@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@11.4.2",
+  "engines": {
+    "node": ">=24.11.0"
+  },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tools/eslint-config"
   ],
   "scripts": {
     "dev": "npm run dev -w @bike-jumper/web -- --host 127.0.0.1 --port 4173",
@@ -29,8 +33,8 @@
     "test:session": "vitest run --project web-unit apps/web/tests/integration/session-continuity.test.ts",
     "test:ui": "vitest run --project web-unit apps/web/tests/unit/ui-components.test.tsx",
     "test:views": "vitest run --project web-unit apps/web/tests/unit --passWithNoTests",
-    "test:e2e": "playwright test tests/e2e/workbench.spec.ts tests/e2e/library.spec.ts tests/e2e/designer.spec.ts tests/e2e/report.spec.ts tests/e2e/validation.spec.ts tests/e2e/demo-journey.spec.ts --project=engine-chromium --project=engine-firefox --project=engine-webkit --project=branded-browser-chrome --project=branded-browser-edge --project=tablet --reporter=line",
-    "test:e2e:views": "playwright test tests/e2e/workbench.spec.ts tests/e2e/library.spec.ts tests/e2e/designer.spec.ts tests/e2e/report.spec.ts tests/e2e/validation.spec.ts --project=engine-chromium --project=tablet --reporter=line",
+    "test:e2e": "playwright test tests/e2e/workbench.spec.ts tests/e2e/library.spec.ts tests/e2e/designer.spec.ts tests/e2e/pose.spec.ts tests/e2e/report.spec.ts tests/e2e/validation.spec.ts tests/e2e/demo-journey.spec.ts --project=engine-chromium --project=engine-firefox --project=engine-webkit --project=branded-browser-chrome --project=branded-browser-edge --project=tablet --reporter=line",
+    "test:e2e:views": "playwright test tests/e2e/workbench.spec.ts tests/e2e/library.spec.ts tests/e2e/designer.spec.ts tests/e2e/pose.spec.ts tests/e2e/report.spec.ts tests/e2e/validation.spec.ts --project=engine-chromium --project=tablet --reporter=line",
     "test:visual": "playwright test tests/visual --project=visual --project=tablet --reporter=line",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts --project=web-server --reporter=line",
     "preview": "npm run preview -w @bike-jumper/web -- --host 127.0.0.1 --port 4173",

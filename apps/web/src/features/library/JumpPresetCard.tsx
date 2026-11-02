@@ -16,7 +16,9 @@ const formatSpeedWindow = (preset: Preset): string => {
   }
 
   if (preset.speedWindow.status === "unavailable") {
-    return preset.speedWindow.reason ?? "Awaiting validated speed-window guidance";
+    return preset.speedWindow.reason
+      ? `Unavailable: ${preset.speedWindow.reason}`
+      : "Unavailable: no measured window yet";
   }
 
   return `${preset.speedWindow.minimum.toFixed(2)} - ${preset.speedWindow.maximum.toFixed(2)} m/s`;

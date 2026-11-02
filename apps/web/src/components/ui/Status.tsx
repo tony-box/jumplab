@@ -9,7 +9,7 @@ type StatusProps = {
 
 const sourceText = (source: StatusProps["source"]): string => {
   if (!source) return "";
-  return source === "solver" ? "solver" : "representative";
+  return source === "solver" ? "solver" : "recorded fixture";
 };
 
 export const Status = ({ id, label, source, icon }: StatusProps) => (

@@ -6,7 +6,11 @@ import { AppShell } from "../../components/ui";
 import { selectSessionState, selectStoreActions, useAppStore } from "../../state/store";
 import { registerValidationTestControls } from "../../test-hooks";
 import { useAppServices } from "../../app/AppProviders";
-import { type ValidationSuiteSnapshot, type ValidationSuiteStatus } from "./validation-runner";
+import {
+  REFERENCE_FIXTURE_DISCLOSURE,
+  type ValidationSuiteSnapshot,
+  type ValidationSuiteStatus
+} from "./validation-runner";
 import { ValidationResults } from "./ValidationResults";
 
 const TIMESTEP_OPTIONS = [
@@ -22,8 +26,7 @@ const initialSnapshot = (dt: number): ValidationSuiteSnapshot => ({
   dt,
   profileLabel: "not run",
   source: "representative-fixture",
-  disclosure:
-    "Validation checks are measured in this browser from representative fixtures. Pending gates remain awaiting core.",
+  disclosure: REFERENCE_FIXTURE_DISCLOSURE,
   details: {},
   rows: [],
   convergence: {
@@ -156,10 +159,8 @@ export const ValidationPage = () => {
       <main className="validation-page" data-od-id="validation-page" tabIndex={0}>
         <header className="validation-header">
           <h1>Validation suite</h1>
-          <p data-od-id="validation-disclosure">
-            Nothing on this page is a stored run artifact. Every measured row is produced on demand
-            in this browser, and pending rows keep their owner and blocked gate until core evidence
-            is available.
+          <p data-od-id="validation-disclosure" data-source={snapshot.source}>
+            {snapshot.disclosure}
           </p>
           <Link className="btn" to="/designer">
             Open Designer
@@ -202,7 +203,7 @@ export const ValidationPage = () => {
             </strong>
           </article>
           <article>
-            <span>Wall time</span>
+            <span>Replay time</span>
             <strong className="num" data-od-id="summary-wall-time">
               {snapshot.summary.wallTimeMs.toFixed(1)} ms
             </strong>
@@ -235,7 +236,7 @@ export const ValidationPage = () => {
             <AlertTriangle aria-hidden="true" />
             <p>
               {snapshot.status === "failed"
-                ? `Validation failed: ${snapshot.error ?? "unrecoverable fixture failure"}`
+                ? `Validation failed: ${snapshot.error ?? "the suite could not complete"}`
                 : "Validation budget exceeded before all runnable checks settled."}
             </p>
           </div>

@@ -1,34 +1,35 @@
-# Follow-up Feature Boundaries
+# Follow-up Features
 
-## Physics productionization
+Work the current model deliberately leaves out, roughly in order of how much it would change
+results. Each item changes physics output, so each one must publish a new model and solver version,
+update the golden hash and parity fixtures, and add acceptance tests to
+`crates/physics-core/tests`.
 
-Own coupled bicycle/rider bodies, suspension and tire/contact models, calibration datasets,
-sensitivity analysis, expanded golden cases, and production performance budgets. It consumes the v1
-scenario and worker boundaries but must publish a new model version.
+## Suspension
 
-### Required coupled rider and suspension dynamics specification
+Make the fork and rear shock real prismatic joints with spring and damper forces from the stored
+travel, sag, spring rate and damping. Landing loads would then compress the suspension before they
+reach the rider, and preload and rebound would add to pop. Telemetry should report travel used.
 
-Feature 005 may temporarily model the rider and bike as one rigid mass only to establish honest
-two-wheel non-penetration, measured contact loads, and shared terrain geometry. A follow-up
-specification is required before the product claims that rider posture, movement, suspension setup,
-or frame type changes jump dynamics. That specification must model rider position and weight
-transfer, active rider movement, suspension compression and rebound, and their coupled effects on
-takeoff, airborne rotation, landing, and ground loads. It owns retirement of feature 005's temporary
-Principle II exception and must publish a new model version with analytical, energy, angular-motion,
-and regression validation.
+## Variable rider inertia
 
-## Workbench
+Rider inertia is constant for the run. Folding and extending the body changes it, which matters for
+in-air rotation. Computing inertia from the reconstructed skeleton each step needs care to keep
+angular momentum exactly conserved.
 
-Own complete input families, baseline comparison, camera/overlay persistence, production-worker
-integration, warnings, and run management. It may orchestrate solves but cannot calculate physics.
+## Rolling wheels and traction
 
-## Pose editor
+Wheels are frictionless point masses. Rolling wheels with tire friction would add wheel inertia,
+gyroscopic effects, braking and rolling resistance, and would let a front-wheel touchdown pitch the
+bike realistically.
 
-Own complete distance-key authoring, reusable clips, validation feedback, and preview controls. All
-interpolation, joint limits, and constrained limbs remain Rust-owned.
+## Rider workspace
 
-## Reporting, library, and validation
+The workspace limits leg and arm reach but not saddle or top-tube contact, so under extreme loads a
+fully folded rider can sink below the pedals. Adding those limits would make deep compressions
+realistic.
 
-Own durable run comparison, exports, reusable scenario components, provenance-rich charts/tables,
-and analytical validation views. These should be separate specifications because their persistence,
-sharing, and acceptance criteria differ from the workbench spike.
+## Ground balance control
+
+The rider instinct only acts in the air. A ground controller (weighting the wheels, manualling)
+would let authored poses be less exact.

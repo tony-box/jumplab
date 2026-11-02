@@ -3,18 +3,34 @@
   "source": "representative-fixture",
   "budgetMs": 150,
   "rowDelayMs": 8,
-  "failureProfileId": "1-480",
-  "failureAfterRows": 3,
-  "budgetProfileId": "1-60",
-  "budgetExceededAfterRows": 5,
   "profiles": [
-    { "id": "1-960", "label": "1/960 s", "dt": 0.0010416666666666667 },
-    { "id": "1-480", "label": "1/480 s", "dt": 0.0020833333333333333 },
-    { "id": "1-240", "label": "1/240 s", "dt": 0.004166666666666667 },
-    { "id": "1-120", "label": "1/120 s", "dt": 0.008333333333333333 },
-    { "id": "1-60", "label": "1/60 s", "dt": 0.016666666666666666 }
+    {
+      "id": "1-960",
+      "label": "1/960 s",
+      "dt": 0.0010416666666666667
+    },
+    {
+      "id": "1-480",
+      "label": "1/480 s",
+      "dt": 0.0020833333333333333
+    },
+    {
+      "id": "1-240",
+      "label": "1/240 s",
+      "dt": 0.004166666666666667
+    },
+    {
+      "id": "1-120",
+      "label": "1/120 s",
+      "dt": 0.008333333333333333
+    },
+    {
+      "id": "1-60",
+      "label": "1/60 s",
+      "dt": 0.016666666666666666
+    }
   ],
-  "disclosure": "Each measured row is calculated in this browser from representative fixtures. Pending rows name the owner and blocked gate, and never count as passing.",
+  "disclosure": "Rows are replayed from a recorded reference fixture, not measured in this browser. Pending rows name the owner and blocked gate, and never count as passing.",
   "checks": [
     {
       "id": "free-fall-position-error",
@@ -23,11 +39,36 @@
       "description": "Semi-implicit Euler free-fall compared against y(t) = -0.5 g t^2.",
       "traceRef": "trace://validation/free-fall",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 2.1e-7, "tolerance": 1.0e-6, "unit": "m" },
-        "1-480": { "status": "pass", "measured": 4.3e-7, "tolerance": 1.0e-6, "unit": "m" },
-        "1-240": { "status": "pass", "measured": 8.8e-7, "tolerance": 2.0e-6, "unit": "m" },
-        "1-120": { "status": "fail", "measured": 2.5e-6, "tolerance": 2.0e-6, "unit": "m" },
-        "1-60": { "status": "fail", "measured": 8.9e-6, "tolerance": 2.0e-6, "unit": "m" }
+        "1-960": {
+          "status": "pass",
+          "measured": 2.1e-7,
+          "tolerance": 1e-6,
+          "unit": "m"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 4.3e-7,
+          "tolerance": 1e-6,
+          "unit": "m"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 8.8e-7,
+          "tolerance": 2e-6,
+          "unit": "m"
+        },
+        "1-120": {
+          "status": "fail",
+          "measured": 2.5e-6,
+          "tolerance": 2e-6,
+          "unit": "m"
+        },
+        "1-60": {
+          "status": "fail",
+          "measured": 8.9e-6,
+          "tolerance": 2e-6,
+          "unit": "m"
+        }
       }
     },
     {
@@ -37,11 +78,36 @@
       "description": "Position integrated against closed-form projectile motion under constant gravity.",
       "traceRef": "trace://validation/projectile",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 3.4e-7, "tolerance": 1.5e-6, "unit": "m" },
-        "1-480": { "status": "pass", "measured": 6.9e-7, "tolerance": 1.5e-6, "unit": "m" },
-        "1-240": { "status": "pass", "measured": 1.3e-6, "tolerance": 2.0e-6, "unit": "m" },
-        "1-120": { "status": "pass", "measured": 1.9e-6, "tolerance": 2.0e-6, "unit": "m" },
-        "1-60": { "status": "fail", "measured": 6.1e-6, "tolerance": 2.0e-6, "unit": "m" }
+        "1-960": {
+          "status": "pass",
+          "measured": 3.4e-7,
+          "tolerance": 1.5e-6,
+          "unit": "m"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 6.9e-7,
+          "tolerance": 1.5e-6,
+          "unit": "m"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 1.3e-6,
+          "tolerance": 2e-6,
+          "unit": "m"
+        },
+        "1-120": {
+          "status": "pass",
+          "measured": 1.9e-6,
+          "tolerance": 2e-6,
+          "unit": "m"
+        },
+        "1-60": {
+          "status": "fail",
+          "measured": 6.1e-6,
+          "tolerance": 2e-6,
+          "unit": "m"
+        }
       }
     },
     {
@@ -51,11 +117,36 @@
       "description": "Integrated angular position compared with theta(t) = omega t.",
       "traceRef": "trace://validation/rotation",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 8.8e-8, "tolerance": 5.0e-7, "unit": "rad" },
-        "1-480": { "status": "pass", "measured": 1.7e-7, "tolerance": 5.0e-7, "unit": "rad" },
-        "1-240": { "status": "pass", "measured": 3.4e-7, "tolerance": 7.0e-7, "unit": "rad" },
-        "1-120": { "status": "pass", "measured": 6.8e-7, "tolerance": 1.4e-6, "unit": "rad" },
-        "1-60": { "status": "fail", "measured": 2.1e-6, "tolerance": 1.4e-6, "unit": "rad" }
+        "1-960": {
+          "status": "pass",
+          "measured": 8.8e-8,
+          "tolerance": 5e-7,
+          "unit": "rad"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 1.7e-7,
+          "tolerance": 5e-7,
+          "unit": "rad"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 3.4e-7,
+          "tolerance": 7e-7,
+          "unit": "rad"
+        },
+        "1-120": {
+          "status": "pass",
+          "measured": 6.8e-7,
+          "tolerance": 1.4e-6,
+          "unit": "rad"
+        },
+        "1-60": {
+          "status": "fail",
+          "measured": 2.1e-6,
+          "tolerance": 1.4e-6,
+          "unit": "rad"
+        }
       }
     },
     {
@@ -65,11 +156,36 @@
       "description": "Checks contact distance equals wheel radius times rotation.",
       "traceRef": "trace://validation/rolling",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 0, "tolerance": 1.0e-9, "unit": "m" },
-        "1-480": { "status": "pass", "measured": 0, "tolerance": 1.0e-9, "unit": "m" },
-        "1-240": { "status": "pass", "measured": 0, "tolerance": 1.0e-9, "unit": "m" },
-        "1-120": { "status": "pass", "measured": 0, "tolerance": 1.0e-9, "unit": "m" },
-        "1-60": { "status": "pass", "measured": 0, "tolerance": 1.0e-9, "unit": "m" }
+        "1-960": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 1e-9,
+          "unit": "m"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 1e-9,
+          "unit": "m"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 1e-9,
+          "unit": "m"
+        },
+        "1-120": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 1e-9,
+          "unit": "m"
+        },
+        "1-60": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 1e-9,
+          "unit": "m"
+        }
       }
     },
     {
@@ -79,11 +195,36 @@
       "description": "Damped oscillator trajectory compared with its underdamped closed-form response.",
       "traceRef": "trace://validation/suspension",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 8.8e-5, "tolerance": 2.0e-4, "unit": "m" },
-        "1-480": { "status": "pass", "measured": 1.7e-4, "tolerance": 3.0e-4, "unit": "m" },
-        "1-240": { "status": "pass", "measured": 2.7e-4, "tolerance": 4.0e-4, "unit": "m" },
-        "1-120": { "status": "fail", "measured": 4.4e-4, "tolerance": 4.0e-4, "unit": "m" },
-        "1-60": { "status": "fail", "measured": 9.1e-4, "tolerance": 4.0e-4, "unit": "m" }
+        "1-960": {
+          "status": "pass",
+          "measured": 8.8e-5,
+          "tolerance": 0.0002,
+          "unit": "m"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 0.00017,
+          "tolerance": 0.0003,
+          "unit": "m"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 0.00027,
+          "tolerance": 0.0004,
+          "unit": "m"
+        },
+        "1-120": {
+          "status": "fail",
+          "measured": 0.00044,
+          "tolerance": 0.0004,
+          "unit": "m"
+        },
+        "1-60": {
+          "status": "fail",
+          "measured": 0.00091,
+          "tolerance": 0.0004,
+          "unit": "m"
+        }
       }
     },
     {
@@ -117,7 +258,12 @@
           "tolerance": 0.05,
           "unit": "abs-order-error"
         },
-        "1-60": { "status": "fail", "measured": 0.26, "tolerance": 0.05, "unit": "abs-order-error" }
+        "1-60": {
+          "status": "fail",
+          "measured": 0.26,
+          "tolerance": 0.05,
+          "unit": "abs-order-error"
+        }
       }
     },
     {
@@ -127,11 +273,36 @@
       "description": "Repeated solves of the same scenario produce identical frame-stream hashes.",
       "traceRef": "trace://validation/determinism/hash",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-480": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-240": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-120": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-60": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" }
+        "1-960": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-120": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-60": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        }
       }
     },
     {
@@ -141,11 +312,36 @@
       "description": "Phase boundaries remain stable across repeated replay passes.",
       "traceRef": "trace://validation/determinism/phase",
       "outcomes": {
-        "1-960": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-480": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-240": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-120": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" },
-        "1-60": { "status": "pass", "measured": 0, "tolerance": 0, "unit": "mismatch-count" }
+        "1-960": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-480": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-240": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-120": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        },
+        "1-60": {
+          "status": "pass",
+          "measured": 0,
+          "tolerance": 0,
+          "unit": "mismatch-count"
+        }
       }
     },
     {
@@ -177,11 +373,36 @@
     "title": "Projectile position error vs delta-t",
     "axisLabel": "log-log",
     "rows": [
-      { "dt": 0.016666666666666666, "error": 0.00014, "ratio": null, "order": null },
-      { "dt": 0.008333333333333333, "error": 0.000071, "ratio": 1.972, "order": 0.979 },
-      { "dt": 0.004166666666666667, "error": 0.000036, "ratio": 1.972, "order": 0.979 },
-      { "dt": 0.0020833333333333333, "error": 0.0000182, "ratio": 1.978, "order": 0.984 },
-      { "dt": 0.0010416666666666667, "error": 0.0000091, "ratio": 2.0, "order": 1.0 }
+      {
+        "dt": 0.016666666666666666,
+        "error": 0.00014,
+        "ratio": null,
+        "order": null
+      },
+      {
+        "dt": 0.008333333333333333,
+        "error": 7.1e-5,
+        "ratio": 1.972,
+        "order": 0.979
+      },
+      {
+        "dt": 0.004166666666666667,
+        "error": 3.6e-5,
+        "ratio": 1.972,
+        "order": 0.979
+      },
+      {
+        "dt": 0.0020833333333333333,
+        "error": 1.82e-5,
+        "ratio": 1.978,
+        "order": 0.984
+      },
+      {
+        "dt": 0.0010416666666666667,
+        "error": 9.1e-6,
+        "ratio": 2.0,
+        "order": 1.0
+      }
     ]
   },
   "determinism": {

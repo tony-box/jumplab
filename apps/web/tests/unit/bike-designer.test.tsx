@@ -236,6 +236,39 @@ describe("bike designer", () => {
     );
   });
 
+  it("shows rear shock fields like the fork fields only for full-suspension frames", async () => {
+    renderWithProviders(<DesignerPage />, {
+      route: "/pose",
+      services: { solverGateway: gatewayFor() }
+    });
+    fireEvent.click(await screen.findByRole("radio", { name: "Bike" }));
+
+    expect(screen.getByLabelText("Fork travel")).toBeVisible();
+    expect(screen.getByLabelText("Rear shock travel")).toHaveValue(140);
+    expect(screen.getByLabelText("Rear shock spring rate")).toHaveValue(22000);
+    expect(screen.getByText(/stored with the scenario for reference only/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Hardtail" }));
+    await waitFor(() =>
+      expect((useAppStore.getState().scenario.scenario as Scenario).bike.rearShock).toBeNull()
+    );
+    expect(screen.queryByLabelText("Rear shock travel")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Fork travel")).toBeVisible();
+  });
+
+  it("does not commit a cleared bike dimension", async () => {
+    renderWithProviders(<DesignerPage />, {
+      route: "/pose",
+      services: { solverGateway: gatewayFor() }
+    });
+    fireEvent.click(await screen.findByRole("radio", { name: "Bike" }));
+    const before = (useAppStore.getState().scenario.scenario as Scenario).bike.mass;
+
+    fireEvent.change(screen.getByLabelText("Bike mass"), { target: { value: "" } });
+    expect(screen.queryAllByText(/supported range/i)).toHaveLength(0);
+    expect((useAppStore.getState().scenario.scenario as Scenario).bike.mass).toBe(before);
+  });
+
   it("shows no bike keyframes and restores the pose timeline when modes switch", async () => {
     renderWithProviders(<DesignerPage />, {
       route: "/pose",

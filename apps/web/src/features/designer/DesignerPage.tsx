@@ -129,6 +129,7 @@ export const DesignerPage = () => {
                   type="button"
                   role="radio"
                   aria-checked={mode === option}
+                  tabIndex={mode === option ? 0 : -1}
                   onClick={() => setMode(option)}
                 >
                   {option === "bike" ? "Bike" : "Pose"}
@@ -140,11 +141,14 @@ export const DesignerPage = () => {
               {editor.saturated ? "saturated" : "reachable"}
               <span className="status-source">{editor.saturationReason ?? "finite output"}</span>
             </span>
-            {visibleApplyDisabledReason ? (
-              <p className="apply-disabled-reason" data-od-id="apply-disabled-reason" role="status">
-                {visibleApplyDisabledReason}
-              </p>
-            ) : null}
+            {/* The slot is always present so the reason appearing doesn't shift the stage. */}
+            <div className="apply-disabled-slot" role="status">
+              {visibleApplyDisabledReason ? (
+                <p className="apply-disabled-reason" data-od-id="apply-disabled-reason">
+                  {visibleApplyDisabledReason}
+                </p>
+              ) : null}
+            </div>
           </header>
 
           <section

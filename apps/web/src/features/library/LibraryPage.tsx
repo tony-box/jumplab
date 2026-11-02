@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { Link } from "react-router";
 
-import { Callout, AppShell } from "../../components/ui";
+import { Callout, AppShell, handleRovingKeyDown, rovingTabIndex } from "../../components/ui";
 import { JumpPresetCard } from "./JumpPresetCard";
 import { LibraryEmptyState } from "./LibraryEmptyState";
 import { PresetTables } from "./PresetTables";
@@ -58,13 +58,29 @@ export const LibraryPage = () => {
           role="tablist"
           data-od-id="library-tabs"
           aria-label="Preset categories"
+          onKeyDown={(event) =>
+            handleRovingKeyDown(
+              event,
+              '[role="tab"]',
+              (item) => {
+                if (item.dataset.value) library.setCategory(item.dataset.value);
+              },
+              { vertical: false }
+            )
+          }
         >
-          {tabOptions.map((option) => (
+          {tabOptions.map((option, index) => (
             <button
               key={option.value}
               type="button"
               role="tab"
+              data-value={option.value}
               aria-selected={library.category === option.value}
+              tabIndex={rovingTabIndex(
+                library.category === option.value,
+                index,
+                tabOptions.some((candidate) => candidate.value === library.category)
+              )}
               aria-controls={library.loading ? undefined : option.id}
               onClick={() => library.setCategory(option.value)}
             >

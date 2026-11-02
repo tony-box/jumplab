@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import { hashScenario, type RunArtifact } from "../../../../../packages/schema/src/index";
 import { useAppServices } from "../../app/AppProviders";
+import type { RunArtifactRepository } from "../../app/services";
 import { AppShell, Button, StaleReference } from "../../components/ui";
 import {
   selectRunState,
@@ -28,13 +29,16 @@ const downloadCsv = (runId: string, csv: string): void => {
   anchor.href = url;
   anchor.download = `jump-lab-run-${runId}.csv`;
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-const statusLabel = (state: "loading" | "ready" | "missing" | "legacy"): string => {
+type ReportLoadState = "loading" | "ready" | "missing" | "legacy" | "error";
+
+const statusLabel = (state: ReportLoadState): string => {
   if (state === "loading") return "loading report";
   if (state === "ready") return "report ready";
   if (state === "legacy") return "legacy run";
+  if (state === "error") return "report unreadable";
   return "missing run";
 };
 
@@ -46,9 +50,8 @@ export const ReportPage = () => {
   const runState = useAppStore(selectRunState);
   const sessionState = useAppStore(selectSessionState);
 
-  const [loadingState, setLoadingState] = useState<"loading" | "ready" | "missing" | "legacy">(
-    "loading"
-  );
+  const [loadingState, setLoadingState] = useState<ReportLoadState>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [current, setCurrent] = useState<RunArtifact | null>(null);
   const [baseline, setBaseline] = useState<RunArtifact | null>(null);
   const [runs, setRuns] = useState<Awaited<ReturnType<typeof services.runArtifactRepository.list>>>(
@@ -80,9 +83,10 @@ export const ReportPage = () => {
       }
 
       setLoadingState("loading");
+      setLoadError(null);
       setSurfaceError(null);
 
-      const [listedRuns, loaded] = await Promise.all([
+      const [listedResult, loadedResult] = await Promise.allSettled([
         services.runArtifactRepository.list(),
         loadRouteArtifact({ routeRunId, repository: services.runArtifactRepository })
       ]);
@@ -91,7 +95,21 @@ export const ReportPage = () => {
         return;
       }
 
+      const listedRuns: Awaited<ReturnType<RunArtifactRepository["list"]>> =
+        listedResult.status === "fulfilled" ? listedResult.value : [];
       setRuns(listedRuns);
+
+      if (loadedResult.status === "rejected") {
+        const error: unknown = loadedResult.reason;
+        setCurrent(null);
+        setLoadError(
+          error instanceof Error ? error.message : "The stored run record could not be read"
+        );
+        setLoadingState("error");
+        return;
+      }
+
+      const loaded = loadedResult.value;
 
       if (loaded.state === "ready" && loaded.artifact) {
         setCurrent(loaded.artifact);
@@ -124,7 +142,18 @@ export const ReportPage = () => {
         return;
       }
 
-      const artifact = await services.runArtifactRepository.get(selectedBaselineRunId);
+      let artifact: RunArtifact | null = null;
+      try {
+        artifact = await services.runArtifactRepository.get(selectedBaselineRunId);
+      } catch (error) {
+        if (active) {
+          setSurfaceError(
+            error instanceof Error
+              ? `Baseline run could not be read: ${error.message}`
+              : "Baseline run could not be read"
+          );
+        }
+      }
       if (!active) {
         return;
       }
@@ -188,6 +217,7 @@ export const ReportPage = () => {
     }
   };
 
+  const fallbackRun = runs.find((run) => run.runId !== routeRunId) ?? null;
   const stale = resolveStaleRunReference(Object.values(sessionState.staleReferences), routeRunId);
 
   return (
@@ -219,7 +249,27 @@ export const ReportPage = () => {
 
         {loadingState === "loading" ? <p>Loading report...</p> : null}
 
-        {loadingState !== "ready" ? (
+        {loadingState === "error" ? (
+          <section className="report-error" data-od-id="report-error" role="alert">
+            <h2>This run report could not be opened</h2>
+            <p>
+              The stored record for run <code>{routeRunId}</code> is corrupt or unreadable
+              {loadError ? `: ${loadError}` : "."}
+            </p>
+            <div className="report-actions">
+              <Link className="btn" to="/workbench">
+                Back to workbench
+              </Link>
+              {fallbackRun ? (
+                <Link className="btn" to={`/report/${fallbackRun.runId}`}>
+                  Open latest run
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {loadingState !== "ready" && loadingState !== "error" ? (
           <section data-od-id={loadingState === "legacy" ? "report-legacy" : "report-missing"}>
             {stale ? (
               <StaleReference

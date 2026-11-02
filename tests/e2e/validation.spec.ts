@@ -91,37 +91,21 @@ test("validation route honors data-od-id contract, keyboard timestep, progress, 
   await expect(page.locator('[data-od-id="pending-table"]')).not.toContainText(/pass/i);
 });
 
-test("validation recovery transitions failed and budget-exceeded back to completed", async ({
+test("every timestep replays the recorded fixture to completion without injected failures", async ({
   page
 }) => {
   test.setTimeout(60_000);
 
   await page.goto("/validation");
 
-  await page.locator('[data-od-id="timestep-select"]').selectOption("0.0020833333333333333");
-  await page.locator('[data-od-id="run-suite"]').click();
-  await expect
-    .poll(async () =>
-      page.locator('[data-od-id="suite-summary"]').getAttribute("data-suite-status")
-    )
-    .toBe("failed");
-  await expect(page.locator('[data-od-id="validation-recovery"]')).toContainText(/failed/i);
-
-  await page.locator('[data-od-id="timestep-select"]').selectOption("0.016666666666666666");
-  await page.locator('[data-od-id="run-suite"]').click();
-  await expect
-    .poll(async () =>
-      page.locator('[data-od-id="suite-summary"]').getAttribute("data-suite-status")
-    )
-    .toBe("budget-exceeded");
-  await expect(page.locator('[data-od-id="validation-recovery"]')).toContainText(/budget/i);
-
-  await page.locator('[data-od-id="timestep-select"]').selectOption("0.004166666666666667");
-  await page.locator('[data-od-id="run-suite"]').click();
-  await expect
-    .poll(async () =>
-      page.locator('[data-od-id="suite-summary"]').getAttribute("data-suite-status")
-    )
-    .toBe("completed");
-  await expect(page.locator('[data-od-id="validation-recovery"]')).toHaveCount(0);
+  for (const dt of ["0.0020833333333333333", "0.016666666666666666", "0.004166666666666667"]) {
+    await page.locator('[data-od-id="timestep-select"]').selectOption(dt);
+    await page.locator('[data-od-id="run-suite"]').click();
+    await expect
+      .poll(async () =>
+        page.locator('[data-od-id="suite-summary"]').getAttribute("data-suite-status")
+      )
+      .toBe("completed");
+    await expect(page.locator('[data-od-id="validation-recovery"]')).toHaveCount(0);
+  }
 });

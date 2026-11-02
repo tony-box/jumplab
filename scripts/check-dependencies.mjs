@@ -6,10 +6,10 @@ import { randomUUID } from "node:crypto";
 const root = resolve(import.meta.dirname, "..");
 const lock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
 const packages = Object.entries(lock.packages)
-  .filter(([path, value]) => path.startsWith("node_modules/") && !value.link)
+  .filter(([path, value]) => path.includes("node_modules/") && !value.link)
   .map(([path, value]) => ({
     type: "library",
-    name: path.replace(/^node_modules\//, ""),
+    name: path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length),
     version: value.version,
     licenses: [{ license: { id: value.license ?? "UNKNOWN" } }],
     hashes: value.integrity ? [{ alg: "SRI", content: value.integrity }] : []
@@ -45,6 +45,13 @@ if (process.argv.includes("--audit")) {
     if (high > 0) throw new Error(`npm audit found ${high} high/critical vulnerabilities`);
     throw error;
   }
+}
+
+if (process.argv.includes("--check-only")) {
+  console.log(
+    `Dependency checks passed for ${packages.length} locked packages (no evidence written).`
+  );
+  process.exit(0);
 }
 
 const sbom = {

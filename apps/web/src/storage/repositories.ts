@@ -79,17 +79,6 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
         return translateStorageError(error);
       }
     },
-    async duplicate(sourceId: string, duplicateId = crypto.randomUUID()): Promise<ScenarioRecord> {
-      const source = await database.scenarios.get(sourceId);
-      if (!source) {
-        throw new Error(`Scenario ${sourceId} does not exist`);
-      }
-      return this.save({
-        ...cloneScenario(source.scenario),
-        id: duplicateId,
-        name: `${source.scenario.name} Copy`
-      });
-    },
     get: (id: string) =>
       database.scenarios
         .get(id)
@@ -103,12 +92,7 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
         .toArray()
         .then((records) =>
           records.map((record) => ({ ...record, scenario: cloneScenario(record.scenario) }))
-        ),
-    remove: (id: string) =>
-      database.transaction("rw", database.scenarios, database.runs, async () => {
-        await database.runs.where("scenarioId").equals(id).delete();
-        await database.scenarios.delete(id);
-      })
+        )
   },
   runs: {
     async save(
@@ -205,12 +189,6 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
       const record = await database.runs.get(runId);
       return record ? cloneRunRecord(record) : undefined;
     },
-    listForScenario: (scenarioId: string) =>
-      database.runs
-        .where("scenarioId")
-        .equals(scenarioId)
-        .sortBy("createdAt")
-        .then((records) => records.map(cloneRunRecord)),
     list: () =>
       database.runs
         .orderBy("createdAt")

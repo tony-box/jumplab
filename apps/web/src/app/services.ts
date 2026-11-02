@@ -7,7 +7,6 @@ import type {
   PoseTargets,
   RunArtifact,
   Scenario,
-  SessionReference,
   SolverCapabilityManifest,
   TerrainProfile
 } from "../../../../packages/schema/src/index";
@@ -122,10 +121,3 @@ export const toAppError = (
 
 export const createUnsupportedServiceError = (name: string): AppError =>
   toAppError("service_unimplemented", `${name} is not implemented in this phase`, true, ["return"]);
-
-export const createScenarioReference = (
-  kind: SessionReference["kind"],
-  id: string,
-  label: string,
-  reason: string
-): SessionReference => ({ kind, id, label, reason, stale: true });

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import type { PoseClip } from "../../../../../packages/schema/src/index";
 
@@ -35,6 +35,9 @@ export const DistanceTrack = ({
   onMoveKey
 }: DistanceTrackProps) => {
   const barRef = useRef<HTMLDivElement | null>(null);
+  const stopDragRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => stopDragRef.current?.(), []);
 
   const first = keyframes[0]?.s ?? -1;
   const last = keyframes[keyframes.length - 1]?.s ?? 1;
@@ -133,10 +136,15 @@ export const DistanceTrack = ({
                 const stop = () => {
                   window.removeEventListener("pointermove", move);
                   window.removeEventListener("pointerup", stop);
+                  window.removeEventListener("pointercancel", stop);
+                  if (stopDragRef.current === stop) stopDragRef.current = null;
                 };
 
+                stopDragRef.current?.();
+                stopDragRef.current = stop;
                 window.addEventListener("pointermove", move);
                 window.addEventListener("pointerup", stop);
+                window.addEventListener("pointercancel", stop);
               }}
             />
           );

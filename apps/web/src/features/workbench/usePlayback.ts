@@ -36,6 +36,19 @@ export const interpolateFrameField = (
   );
 };
 
+/** Inputs, selects and text areas keep their native arrow and space handling. */
+export const isTextEntryTarget = (target: EventTarget | null): boolean => {
+  if (!target || typeof (target as HTMLElement).tagName !== "string") {
+    return false;
+  }
+  const element = target as HTMLElement;
+  if (element.isContentEditable) {
+    return true;
+  }
+  const tag = element.tagName.toLowerCase();
+  return tag === "input" || tag === "select" || tag === "textarea";
+};
+
 export type PlaybackController = {
   framePosition: number;
   frameIndex: number;
@@ -121,6 +134,10 @@ export const usePlayback = (
 
   const bindKeyboard = useCallback(
     (event: KeyboardEvent) => {
+      if (isTextEntryTarget(event.target)) {
+        return;
+      }
+
       if (event.key === " ") {
         event.preventDefault();
         togglePlaying();

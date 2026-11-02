@@ -92,6 +92,35 @@ const applyPresetPatch = (base: Scenario, preset: Preset, nextName: string): Sce
   return scenarioSchema.parse(merged);
 };
 
+const presetScenarioKeys: Record<PresetCategory, readonly (keyof Scenario)[]> = {
+  jump: ["jump", "entry"],
+  rider: ["rider"],
+  bike: ["bike"],
+  movement: ["poseClip"]
+};
+
+/** Scenario sections a preset of this category is allowed to change. */
+export const scenarioKeysForCategory = (category: PresetCategory): readonly (keyof Scenario)[] =>
+  presetScenarioKeys[category];
+
+/**
+ * Applies only the category-owned sections of a preset patch to an existing scenario,
+ * keeping its identity, name and every other section untouched.
+ */
+export const applyPresetToScenario = (base: Scenario, preset: Preset): Scenario => {
+  const patch = isRecord(preset.patch) ? preset.patch : {};
+  const next = structuredClone(scenarioSchema.parse(base)) as Record<string, unknown>;
+  for (const key of presetScenarioKeys[preset.category]) {
+    if (key in patch) {
+      next[key] = mergeDeep(next[key], patch[key]);
+    }
+  }
+  if (preset.category === "jump") {
+    next.jump = normalizeJump(next.jump as Scenario["jump"]);
+  }
+  return scenarioSchema.parse(next);
+};
+
 const ensureCategory = (value: string): PresetCategory => {
   if (!categorySet.has(value as PresetCategory)) {
     return "jump";
@@ -211,7 +240,10 @@ export const createScenarioCatalog = (
 
   const load: ScenarioCatalog["load"] = async (presetId, base) => {
     const preset = resolvePreset(presetId);
-    const scenario = resolveScenario(preset, base);
+    if (base) {
+      return applyPresetToScenario(base, preset);
+    }
+    const scenario = resolveScenario(preset);
     scenario.id = idFactory();
     scenario.name = preset.name;
     return scenarioSchema.parse(scenario);

@@ -74,18 +74,12 @@ describe("offline persistence", () => {
     expect(storedRun?.frameBuffer).not.toBe(frameBuffer);
   });
 
-  it("saves, duplicates, and reopens complete v3 bicycle geometry with canonical hashes", async () => {
+  it("saves and reopens complete v3 bicycle geometry with canonical hashes", async () => {
     const repositories = createRepositories(database);
     const saved = await repositories.scenarios.save(scenario);
-    const duplicate = await repositories.scenarios.duplicate(
-      scenario.id,
-      "10000000-0000-4000-8000-000000000001"
-    );
-    const reopened = await repositories.scenarios.get(duplicate.id);
+    const reopened = await repositories.scenarios.get(scenario.id);
 
     expect(saved.contentHash).toBe(await hashScenario(scenario));
-    expect(duplicate.id).not.toBe(scenario.id);
-    expect(duplicate.name).toBe(`${scenario.name} Copy`);
     expect(reopened?.scenario.bike).toEqual(scenario.bike);
     expect(reopened?.scenario.poseClip.keys).toEqual(scenario.poseClip.keys);
     expect(reopened?.contentHash).toBe(await hashScenario(reopened?.scenario));

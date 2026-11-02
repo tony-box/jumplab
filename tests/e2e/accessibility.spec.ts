@@ -18,6 +18,8 @@ test("workbench jump controls and canvases expose keyboard alternatives", async 
   await expect(page.getByRole("tab", { name: "Rider" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Bike" })).toHaveCount(0);
   const entrySpeed = page.getByLabel("Entry speed");
+  // Controls are disabled until the physics core reports which inputs it supports.
+  await expect(entrySpeed).toBeEnabled();
   await entrySpeed.focus();
   await expect(entrySpeed).toBeFocused();
   await expect(page.getByText(/Frame 0: bike at/)).toBeAttached();

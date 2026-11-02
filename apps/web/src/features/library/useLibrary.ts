@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { hashScenario, type Preset, type Scenario } from "../../../../../packages/schema/src/index";
+import {
+  hashScenario,
+  normalizeJump,
+  type Preset,
+  type Scenario
+} from "../../../../../packages/schema/src/index";
 import { useAppServices } from "../../app/AppProviders";
 import {
   selectSessionState,
@@ -10,7 +15,7 @@ import {
   type SessionReferenceState
 } from "../../state/store";
 import { presetCategories, type PresetCategory } from "./presets";
-import type { ScenarioCatalogWithCounts } from "./scenario-catalog";
+import { scenarioKeysForCategory, type ScenarioCatalogWithCounts } from "./scenario-catalog";
 
 type LibraryCounts = Record<PresetCategory, number>;
 
@@ -134,27 +139,46 @@ export const useLibrary = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [query]);
 
+  const requestRef = useRef(0);
+
+  const reportFailure = useCallback(
+    (unknownError: unknown) => {
+      const message = unknownError instanceof Error ? unknownError.message : "Preset unavailable";
+      setError(message);
+      actions.markStaleReference({
+        kind: "preset",
+        id: `${category}:${query}`,
+        label: "Preset selection",
+        reason: message,
+        stale: true
+      });
+    },
+    [actions, category, query]
+  );
+
+  const openWorkbench = useCallback(() => {
+    actions.setRoute("/workbench");
+    navigate("/workbench");
+  }, [actions, navigate]);
+
   const handoff = useCallback(
-    async (loader: () => Promise<import("../../../../../packages/schema/src/index").Scenario>) => {
+    async (loader: () => Promise<Scenario>) => {
+      const requestId = ++requestRef.current;
       try {
         const scenario = await loader();
         const hash = await hashScenario(scenario);
+        if (requestId !== requestRef.current) {
+          return;
+        }
         actions.setScenario(scenario, hash);
-        actions.setRoute("/workbench");
-        navigate("/workbench");
+        openWorkbench();
       } catch (unknownError) {
-        const message = unknownError instanceof Error ? unknownError.message : "Preset unavailable";
-        setError(message);
-        actions.markStaleReference({
-          kind: "preset",
-          id: `${category}:${query}`,
-          label: "Preset selection",
-          reason: message,
-          stale: true
-        });
+        if (requestId === requestRef.current) {
+          reportFailure(unknownError);
+        }
       }
     },
-    [actions, category, navigate, query]
+    [actions, openWorkbench, reportFailure]
   );
 
   const createScenario = useCallback(
@@ -163,8 +187,38 @@ export const useLibrary = () => {
   );
 
   const loadPreset = useCallback(
-    (presetId: string) => handoff(() => catalog.load(presetId)),
-    [catalog, handoff]
+    async (presetId: string) => {
+      const working = useAppStore.getState().scenario;
+      if (!working.scenario) {
+        return handoff(() => catalog.load(presetId));
+      }
+
+      const requestId = ++requestRef.current;
+      const workingId = working.workingId;
+      try {
+        const preset = results.find((candidate) => candidate.id === presetId) ?? null;
+        const presetCategory = preset?.category ?? category;
+        const patched = await catalog.load(presetId, working.scenario);
+        const latest = useAppStore.getState().scenario;
+        if (requestId !== requestRef.current || latest.workingId !== workingId) {
+          return;
+        }
+        const keys = scenarioKeysForCategory(presetCategory);
+        actions.updateScenario((current) => {
+          const next: Scenario = { ...current };
+          for (const key of keys) {
+            Object.assign(next, { [key]: structuredClone(patched[key]) });
+          }
+          return keys.includes("jump") ? { ...next, jump: normalizeJump(next.jump) } : next;
+        });
+        openWorkbench();
+      } catch (unknownError) {
+        if (requestId === requestRef.current) {
+          reportFailure(unknownError);
+        }
+      }
+    },
+    [actions, catalog, category, handoff, openWorkbench, reportFailure, results]
   );
 
   const duplicatePreset = useCallback(

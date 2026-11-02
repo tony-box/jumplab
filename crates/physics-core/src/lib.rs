@@ -101,7 +101,10 @@ impl SolveResult {
     }
 }
 
-pub fn solve_json(scenario_json: &str, run_id: &str) -> Result<(String, Vec<f32>, Vec<f32>), String> {
+pub fn solve_json(
+    scenario_json: &str,
+    run_id: &str,
+) -> Result<(String, Vec<f32>, Vec<f32>), String> {
     let scenario: Scenario = serde_json::from_str(scenario_json)
         .map_err(|err| format!("invalid scenario json: {err}"))?;
     let output = solver::solve_scenario(&scenario, run_id)?;

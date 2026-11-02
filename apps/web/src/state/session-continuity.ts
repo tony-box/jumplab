@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { AppState, SessionReferenceState } from "./store";
+import type { AppState } from "./store";
 
 const SESSION_KEY = "bike-jumper/session-v1";
 
@@ -108,50 +108,4 @@ export const saveSessionContinuity = (state: AppState): void => {
     staleReferences: Object.values(state.session.staleReferences)
   };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
-};
-
-export const clearSessionReference = (kind: SessionReferenceState["kind"], id: string): void => {
-  const current = restoreSessionContinuity();
-  const next = (current.staleReferences ?? []).filter((reference) => {
-    return !(reference.kind === kind && reference.id === id);
-  });
-  sessionStorage.setItem(
-    SESSION_KEY,
-    JSON.stringify({
-      ...current,
-      staleReferences: next
-    })
-  );
-};
-
-export const replaceSessionReference = (
-  kind: SessionReferenceState["kind"],
-  oldId: string,
-  replacement: { id: string; label: string; reason: string }
-): void => {
-  const current = restoreSessionContinuity();
-  const staleReferences = current.staleReferences ?? [];
-  const mapped = staleReferences.map((reference) => {
-    if (reference.kind !== kind || reference.id !== oldId) {
-      return reference;
-    }
-    return {
-      kind,
-      id: replacement.id,
-      label: replacement.label,
-      reason: replacement.reason,
-      stale: true as const
-    };
-  });
-  sessionStorage.setItem(
-    SESSION_KEY,
-    JSON.stringify({
-      ...current,
-      staleReferences: mapped
-    })
-  );
-};
-
-export const clearSessionContinuity = (): void => {
-  sessionStorage.removeItem(SESSION_KEY);
 };

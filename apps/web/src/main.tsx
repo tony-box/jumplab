@@ -11,7 +11,10 @@ import { installTestHooks } from "./test-hooks";
 import "./styles.css";
 
 registerApplicationServiceWorker();
-installPerformanceInstrumentation();
+// Frame/input sampling only feeds the test hooks; production must not run its rAF loop.
+if (import.meta.env.VITE_TEST_HOOKS === "1") {
+  installPerformanceInstrumentation();
+}
 installTestHooks();
 
 const restoredSession = restoreSessionContinuity();

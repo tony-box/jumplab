@@ -60,7 +60,10 @@ export const Field = ({
       value={value}
       disabled={disabled}
       aria-describedby={disabledReason || explanation ? `${id}-explanation` : undefined}
-      onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+      onChange={(event) => {
+        const next = event.currentTarget.valueAsNumber;
+        if (Number.isFinite(next)) onChange(next);
+      }}
     />
     {disabledReason || explanation ? (
       <span id={`${id}-explanation`} className="sr-only">

@@ -145,7 +145,6 @@ describe("workbench page", () => {
   });
 
   it("renders workbench selectors and capability-gated controls", async () => {
-    const scenario = fixtures.createScenario();
     const dispose = vi.fn().mockResolvedValue(undefined);
 
     const { unmount } = renderWithProviders(<WorkbenchPage />, {
@@ -212,7 +211,6 @@ describe("workbench page", () => {
   });
 
   it("marks stale results from input edits without invoking solve", async () => {
-    const scenario = fixtures.createScenario();
     const solve = vi
       .fn()
       .mockImplementation(async (runId: string, nextScenario: Scenario) =>
@@ -309,7 +307,6 @@ describe("workbench page", () => {
   });
 
   it("renders a solved run whose frames carry the complete achieved pose and landmarks", async () => {
-    const scenario = fixtures.createScenario();
     const solve = vi
       .fn()
       .mockImplementation(async (runId: string, nextScenario: Scenario) =>

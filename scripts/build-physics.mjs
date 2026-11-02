@@ -20,14 +20,27 @@ const run = (command, args, cwd = rootDir) => {
   }
 };
 
+// Keep in sync with README.md and .github/workflows/verify.yml.
+const WASM_PACK_VERSION = "0.15.0";
+
 const ensureWasmPack = () => {
   const result = spawnSync("wasm-pack", ["--version"], {
-    stdio: "ignore",
+    encoding: "utf8",
     shell: globalThis.process.platform === "win32"
   });
+  const install = `cargo install wasm-pack --version ${WASM_PACK_VERSION} --locked`;
 
   if (result.status !== 0) {
-    throw new Error("wasm-pack is required. Install it with: cargo install wasm-pack --locked");
+    throw new Error(`wasm-pack is required. Install it with: ${install}`);
+  }
+  const found = result.stdout.match(/\d+\.\d+\.\d+/)?.[0];
+  // The generated JS bindings vary between wasm-pack minors, so only patch updates are accepted.
+  if (
+    found?.split(".").slice(0, 2).join(".") !== WASM_PACK_VERSION.split(".").slice(0, 2).join(".")
+  ) {
+    throw new Error(
+      `wasm-pack ${WASM_PACK_VERSION} is required, found ${found ?? "unknown"}. Install it with: ${install}`
+    );
   }
 };
 

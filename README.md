@@ -1,96 +1,69 @@
 # 2D MTB Jump Lab
 
-A browser-based 2D mountain bike jump mechanics workbench. React and Canvas provide the editing and playback interface; a deterministic Rust/Rapier core runs in WebAssembly inside a Web Worker.
+A browser workbench for mountain bike jump mechanics. Shape a jump, author how the rider moves
+through it, and see where and how the bike lands.
 
-## Selected stack
+The rider's body position drives the bike. Rider and bike are separate bodies joined by a
+force-limited actuator at the pedals and grips, so pumping a transition, popping off the lip, and
+leaning in the air change the result the way they do on a real bike. A bounded "rider instinct"
+makes small in-air corrections to level the bike for landing.
 
-- React 19, strict TypeScript 7, Vite 8, Canvas 2D, and D3 SVG charts.
-- Rust 1.98 with Rapier 2D 0.35.2 compiled to WASM and isolated behind a versioned worker protocol.
-- Zod boundary validation, Zustand state, Dexie persistence, and a generated service worker.
-- Vitest and Playwright for contracts, parity, browser, offline, accessibility, and visual evidence.
+Physics runs in a deterministic Rust/Rapier core compiled to WebAssembly inside a Web Worker. React
+and Canvas handle editing and playback.
 
-The five product views form a complete browser workflow, but the underlying physics model remains a
-bounded validation milestone rather than a production bicycle dynamics model. See
-[docs/physics/limitations.md](docs/physics/limitations.md).
+## What you get
 
-## Spike results
+- **Workbench:** jump shape, landing, entry speed and rider settings; a stage with the solved
+  trajectory and real velocity, contact-force, rider-push and torque overlays; a landing verdict
+  (case, early, sweet spot, late, overshoot; balanced, nose- or tail-heavy; clean or crash); and
+  takeoff, air, landing, rider and energy metrics. Edits mark the result stale until you solve again.
+- **Designer:** bike geometry and the rider's pose keyframes along the run.
+- **Library:** jump, rider, bike and movement presets with measured entry-speed windows.
+- **Report:** run outputs, charts and CSV export.
+- **Validation:** recorded reference checks against closed-form mechanics.
 
-- Native, Node-WASM, Chromium, Firefox, and Playwright WebKit parity passes.
-- Standard solve p95 is approximately 73 ms against a 5,000 ms gate.
-- Chromium interaction p95 is approximately 16 ms with approximately 60 FPS replay.
-- Production service-worker reload, edit/save/solve/replay/export/import, accessibility, and visual
-  checks pass offline.
-- Real Safari, iPadOS Safari, and Android Chrome remain external manual release gates; Playwright
-  WebKit is not represented as Safari.
+The working scenario is saved in the browser and restored on reload, scenarios can be exported and
+imported as files, and the newest 30 runs are kept. The app works offline after the first load.
 
-## Current implementation
+## Model scope
 
-- Versioned jump, rider, measured bike geometry, pose-keyframe, and solver scenario contract.
-- Fixed-step Rapier two-wheel contact simulation with configurable validated solve/output rates.
-- Deterministic repeat-run, schema rejection, and analytical trajectory tests.
-- Designer workflow for static measured bike geometry and clearance-gated rider pose keyframes.
-- Animated side-view Canvas with trajectory, gravity, velocity, and pinned baseline overlays.
-- Wireframe-driven product shell with Workbench, Designer, Report, Library, and Validation views.
-- Explicit edit -> dirty -> solve workflow; playback and overlay changes never re-enter physics.
-- Fixed desktop workbench with slide-over mobile rails, validated with Playwright pixel and overflow checks.
-
-## Product views
-
-- **Workbench:** scenario inputs, dark instrument stage, exact-frame transport, grouped metrics, and pinned comparisons.
-- **Designer:** scenario-level bicycle geometry plus distance-relative pose keyframe authoring.
-- **Report:** source-labelled run outputs and trajectory charts.
-- **Library:** reusable jump, rider, bike, and movement presets.
-- **Validation:** live browser checks against closed-form ballistic mechanics.
-
-The current model resolves deterministic two-wheel terrain contact and applies representative
-geometry-dependent bike/rider CoG and planar inertia. Suspension bodies, traction, and rider-applied
-forces remain excluded, and the interface labels this boundary directly.
-
-## Versions and evidence scope
-
-- Scenario schema 3, worker protocol 3, frame layout 2, and persistence format 2.
-- Geometry model 1 and mass-distribution model 1; model
-  `rigid-two-wheel-contact-v4-geometry-v1-mass-distribution-v1`; solver
-  `rapier-0.35.2-two-wheel-contact-v5-geometry-v1-mass-distribution-v1`.
-- `/designer` is canonical. `/pose` remains an offline-capable replacement redirect for existing
-  bookmarks.
-- Workbench runs are solver-produced. Validation rows marked `representative-fixture` demonstrate UI
-  readiness and do not satisfy native/WASM physics parity gates.
-- Aerodynamic drag, tire deformation, coupled suspension bodies, and rider motor forces are excluded.
-- Real Safari, iPadOS Safari, Android Chrome, timed reviewer completion, and final maintainer approval
-  remain external release gates.
+Tires are frictionless, suspension isn't simulated, and there's no air drag. See
+[docs/physics/model.md](docs/physics/model.md) for the equations and
+[docs/physics/limitations.md](docs/physics/limitations.md) for what the numbers do and don't mean.
+Results are for learning, not for jump-design, equipment or safety decisions.
 
 ## Development
 
 Prerequisites:
 
 - Node.js 24 or newer
-- Rustup with the repository-pinned GNU toolchain
-- `wasm-bindgen-cli` 0.2.127
-- A GNU linker such as WinLibs on Windows
+- Rust through rustup with the GNU toolchain on Windows (`stable-x86_64-pc-windows-gnu`) and the
+  `wasm32-unknown-unknown` target
+- wasm-pack 0.15
 
 ```powershell
 npm ci
-npm run build:physics
-npm run build
-npm run dev
+npm run build:physics   # native check plus web and Node WASM packages
+npm run dev             # then open the URL Vite prints
 ```
 
-Open the URL printed by Vite.
-
-## Verification
+## Tests
 
 ```powershell
-npm run verify
+cargo test -p physics-core --release   # physics acceptance, determinism, convergence
+npx vitest run                         # schema, contracts, web units, parity, benchmark
+npm run test:e2e                       # Playwright browser flows (run `npx playwright install` once)
+npm run verify                         # everything, in order
 ```
 
-The verifier composes static checks, native/WASM builds, contracts, physics, parity, browser/offline,
-visual, accessibility, benchmark, compatibility, and security evidence.
+`npm run benchmark:standard` measures WASM solve and cancel latency against fixed budgets
+(1 s and 250 ms) and exits non-zero when a budget is missed.
 
-Playwright requires Chromium once per machine:
+## Layout
 
-```powershell
-npx playwright install
-```
-
-See [docs/physics/model.md](docs/physics/model.md) for equations, units, tolerances, and model scope.
+- `crates/physics-core`: Rust core (terrain, pose and skeleton, two-body simulation, landing
+  outcome, metrics, speed window) and its tests.
+- `packages/schema`: Zod schemas for scenarios, run results and the worker protocol, plus
+  migrations.
+- `apps/web`: the React app, worker boundary, rendering and storage.
+- `docs`: physics model, limitations and architecture decisions.

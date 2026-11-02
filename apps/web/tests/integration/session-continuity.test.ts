@@ -4,9 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalSessionRoute,
-  clearSessionContinuity,
-  clearSessionReference,
-  replaceSessionReference,
   restoreSessionContinuity,
   saveSessionContinuity
 } from "../../src/state/session-continuity";
@@ -59,30 +56,5 @@ describe("session continuity", () => {
     const persisted = JSON.stringify(restored);
     expect(persisted).not.toContain("frameBuffer");
     expect(persisted).not.toContain("telemetryBuffer");
-  });
-
-  it("keeps stale references explicit until clear or replace", () => {
-    sessionStorage.setItem(
-      "bike-jumper/session-v1",
-      JSON.stringify({
-        staleReferences: [
-          { kind: "run", id: "run-a", label: "Run A", reason: "missing", stale: true }
-        ]
-      })
-    );
-
-    replaceSessionReference("run", "run-a", {
-      id: "run-b",
-      label: "Run B",
-      reason: "replacement selected"
-    });
-
-    expect(restoreSessionContinuity().staleReferences?.[0]?.id).toBe("run-b");
-
-    clearSessionReference("run", "run-b");
-    expect(restoreSessionContinuity().staleReferences).toEqual([]);
-
-    clearSessionContinuity();
-    expect(restoreSessionContinuity()).toEqual({});
   });
 });

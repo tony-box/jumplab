@@ -5,7 +5,7 @@ import {
   decisionRecordSchema,
   type DecisionPackage,
   type DecisionRecord
-} from "../src/index";
+} from "../../../tools/stack-decision/decision";
 
 const baseDecisionPackage: DecisionPackage = {
   criteria: [

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import standardRun from "../fixtures/run-results/standard-v2.json" with { type: "json" };
 import {
   FRAME_LAYOUT_FIELDS,
   FRAME_LAYOUT_VERSION,
@@ -11,14 +12,24 @@ const chartPathCount = async (page: Parameters<typeof test>[0]["page"]) => {
 
 const seedReportRuns = async (page: Parameters<typeof test>[0]["page"]) => {
   return page.evaluate(
-    async ({ frameLayoutFields, frameLayoutVersion, frameStrideFloat32 }) => {
+    async ({ fixtureManifest, frameLayoutFields, frameLayoutVersion, frameStrideFloat32 }) => {
       const scenario = window.__BIKE_JUMPER_TEST__?.getState().scenario.scenario;
-      const services = (window as Window & { __BIKE_JUMPER_SERVICES__?: any })
-        .__BIKE_JUMPER_SERVICES__;
+      const services = (
+        window as Window & {
+          __BIKE_JUMPER_SERVICES__?: {
+            runArtifactRepository?: {
+              list: () => Promise<Array<{ runId: string }>>;
+              remove: (runId: string) => Promise<void>;
+              save: (artifact: unknown) => Promise<unknown>;
+            };
+          };
+        }
+      ).__BIKE_JUMPER_SERVICES__;
       if (!scenario) {
         throw new Error("Scenario was not initialized");
       }
-      if (!services?.runArtifactRepository) {
+      const repository = services?.runArtifactRepository;
+      if (!repository) {
         throw new Error("Run artifact repository was not exposed for tests");
       }
 
@@ -40,7 +51,9 @@ const seedReportRuns = async (page: Parameters<typeof test>[0]["page"]) => {
           [2, 12 + variant, 1.6 + variant * 0.1, 0.15, 8.2, -0.2, 1, 0.1, 0.1, 0.1],
           frameStrideFloat32 * 2
         );
-        const telemetryData = new Float32Array([2 + variant, 2.1 + variant, 2.2 + variant]);
+        const telemetryData = new Float32Array(3 * fixtureManifest.telemetry.strideFloat32).fill(
+          2 + variant
+        );
 
         return {
           runId,
@@ -74,36 +87,16 @@ const seedReportRuns = async (page: Parameters<typeof test>[0]["page"]) => {
               { name: "flight", startFrame: 2, endFrame: 2 }
             ],
             metrics: {
+              ...fixtureManifest.metrics,
               airtime: {
                 value: 0.82 + variant * 0.01,
                 unit: "s",
                 source: "measured",
                 reason: null
-              },
-              maxHeight: {
-                value: 2.15 + variant * 0.1,
-                unit: "m",
-                source: "measured",
-                reason: null
-              },
-              landingImpulse: {
-                value: 3.2 + variant * 0.1,
-                unit: "kN*s",
-                source: "estimate",
-                reason: "Fixture estimate"
-              },
-              jointTorque: {
-                value: null,
-                unit: "N*m",
-                source: "pending-core",
-                reason: "Awaiting core"
               }
             },
-            telemetry: {
-              layoutVersion: 1,
-              sampleCount: 3,
-              channels: [{ name: "contactImpulse", unit: "N*s", offset: 0, count: 3 }]
-            },
+            landing: fixtureManifest.landing,
+            telemetry: { ...fixtureManifest.telemetry, sampleCount: 3 },
             resultHash
           },
           frameBuffer: frameData.buffer,
@@ -111,16 +104,15 @@ const seedReportRuns = async (page: Parameters<typeof test>[0]["page"]) => {
         };
       };
 
-      const listed = await services.runArtifactRepository.list();
-      await Promise.all(
-        listed.map((entry: { runId: string }) => services.runArtifactRepository.remove(entry.runId))
-      );
-      await services.runArtifactRepository.save(makeArtifact(runIds[0], 1));
-      await services.runArtifactRepository.save(makeArtifact(runIds[1], 2));
+      const listed = await repository.list();
+      await Promise.all(listed.map((entry) => repository.remove(entry.runId)));
+      await repository.save(makeArtifact(runIds[0], 1));
+      await repository.save(makeArtifact(runIds[1], 2));
 
       return runIds;
     },
     {
+      fixtureManifest: standardRun,
       frameLayoutFields: FRAME_LAYOUT_FIELDS.map((field) => ({ ...field })),
       frameLayoutVersion: FRAME_LAYOUT_VERSION,
       frameStrideFloat32: FRAME_STRIDE_FLOAT32

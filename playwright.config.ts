@@ -1,9 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:4173";
+// Distinct from the dev server (5173) and the manual preview (4173) so a running instance without
+// test hooks is never reused by the suite.
+const port = 4174;
+const baseURL = `http://127.0.0.1:${port}`;
+const preview = `npm run preview -w @bike-jumper/web -- --host 127.0.0.1 --port ${port} --strictPort`;
 
 export default defineConfig({
   testDir: "tests",
+  testMatch: ["**/e2e/**/*.spec.ts", "**/visual/**/*.spec.ts", "**/offline/**/*.spec.ts"],
   fullyParallel: true,
   workers: 1,
   timeout: 30000,
@@ -16,8 +21,10 @@ export default defineConfig({
     screenshot: "only-on-failure"
   },
   webServer: {
-    command:
-      "npm run build -w @bike-jumper/web && npm run preview -w @bike-jumper/web -- --host 127.0.0.1 --port 4173",
+    // scripts/verify.mjs builds once with test hooks and sets PLAYWRIGHT_PREBUILT to skip rebuilding.
+    command: process.env.PLAYWRIGHT_PREBUILT
+      ? preview
+      : `npm run build -w @bike-jumper/web && ${preview}`,
     env: { VITE_TEST_HOOKS: "1" },
     url: baseURL,
     timeout: 120000,
@@ -51,14 +58,7 @@ export default defineConfig({
     },
     {
       name: "visual",
-      testMatch: [
-        "**/visual/**/*.spec.ts",
-        "**/visual/workbench.spec.ts",
-        "**/visual/library.spec.ts",
-        "**/visual/pose.spec.ts",
-        "**/visual/report.spec.ts",
-        "**/visual/validation.spec.ts"
-      ],
+      testMatch: ["**/visual/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], browserName: "chromium" }
     },
     {
@@ -68,14 +68,7 @@ export default defineConfig({
     },
     {
       name: "web-server",
-      testMatch: [
-        "**/e2e/**/*.spec.ts",
-        "**/e2e/workbench.spec.ts",
-        "**/e2e/library.spec.ts",
-        "**/e2e/pose.spec.ts",
-        "**/e2e/report.spec.ts",
-        "**/e2e/validation.spec.ts"
-      ],
+      testMatch: ["**/e2e/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], browserName: "chromium" }
     }
   ]

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { RunArtifact } from "../../packages/schema/src/index";
 
 const solveAndFindTouchdown = async (page: Parameters<typeof test>[0]["page"]) => {
   await page.locator("#run-solve").click();
@@ -36,10 +37,10 @@ test("opening a legacy run regenerates it before corrected animation is shown", 
       window as Window & {
         __BIKE_JUMPER_SERVICES__?: {
           solverGateway: {
-            solve: (runId: string, scenario: unknown) => Promise<any>;
+            solve: (runId: string, scenario: unknown) => Promise<RunArtifact>;
           };
           runArtifactRepository: {
-            save: (artifact: any) => Promise<any>;
+            save: (artifact: RunArtifact) => Promise<unknown>;
             list: () => Promise<Array<{ runId: string }>>;
             remove: (runId: string) => Promise<void>;
           };
@@ -80,10 +81,10 @@ test("opening a legacy run regenerates it before corrected animation is shown", 
     type RegenerationWindow = Window & {
       __BIKE_JUMPER_SERVICES__?: {
         solverGateway: {
-          solve: (runId: string, scenario: unknown) => Promise<any>;
+          solve: (runId: string, scenario: unknown) => Promise<RunArtifact>;
         };
         runArtifactRepository: {
-          get: (runId: string) => Promise<any>;
+          get: (runId: string) => Promise<RunArtifact | undefined>;
         };
       };
       __T042_REGENERATION__?: {
@@ -175,7 +176,7 @@ test("opening a legacy run regenerates it before corrected animation is shown", 
     const repository = (
       window as Window & {
         __BIKE_JUMPER_SERVICES__?: {
-          runArtifactRepository: { get: (runId: string) => Promise<any> };
+          runArtifactRepository: { get: (runId: string) => Promise<RunArtifact | undefined> };
         };
       }
     ).__BIKE_JUMPER_SERVICES__?.runArtifactRepository;
@@ -253,7 +254,9 @@ test("workbench keyboard and primary workflow honors solve-only dispatch", async
   await page.keyboard.press("ArrowRight");
 
   await page.locator('[data-od-id="pin-baseline"]').click();
-  await expect(page.locator('[data-od-id="baseline-card"]')).toContainText("compatible");
+  await expect(page.locator('[data-od-id="baseline-card"]')).toContainText(
+    "Deltas compare against run"
+  );
 });
 
 test("workbench camera follows, holds manual framing, and resets", async ({

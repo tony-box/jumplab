@@ -215,11 +215,31 @@ const runDesignerWorkflow = async (page) => {
 
 const runEngineWorkflow = async (name, browserType, measure) => {
   const browser = await browserType.launch();
+  try {
+    return await measureEngineWorkflow(name, browser, measure);
+  } catch (error) {
+    return {
+      name,
+      workflow: "fail",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await browser.close();
+  }
+};
+
+const measureEngineWorkflow = async (name, browser, measure) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`${baseURL}/workbench`);
   await page.getByRole("button", { name: "Solve run" }).click();
-  await page.getByText("measured", { exact: true }).first().waitFor();
+  // The Outcome verdict leaves its "none" tone only once a solved run is on screen.
+  await page
+    .locator('[data-od-id="landing-outcome"]:not([data-tone="none"])')
+    .waitFor({ timeout: 60_000 });
+  const measuredMetricRows = await page
+    .locator('[data-od-id="metrics-rail"] .metric-row.metric-measured')
+    .count();
 
   let performance = null;
   let canvas = null;
@@ -263,11 +283,12 @@ const runEngineWorkflow = async (name, browserType, measure) => {
     offlineReload = await page.getByRole("button", { name: "Solve run" }).isVisible();
   }
 
-  await browser.close();
   return {
     name,
+    // Reaching this point means every awaited workflow step completed in this engine.
     workflow: "pass",
-    metricProvenance: "pass",
+    measuredMetricRows,
+    metricProvenance: measuredMetricRows > 0 ? "pass" : "fail",
     performance,
     designerPerformance,
     canvas,
@@ -275,16 +296,19 @@ const runEngineWorkflow = async (name, browserType, measure) => {
   };
 };
 
-export const runInteractionBenchmark = async () => {
+export const runInteractionBenchmark = async ({ skipBuild = false } = {}) => {
   const webDir = resolve(rootDir, "apps", "web");
   const viteEntry = resolve(rootDir, "node_modules", "vite", "bin", "vite.js");
-  const build = spawnSync(process.execPath, [viteEntry, "build"], {
-    cwd: webDir,
-    env: { ...process.env, VITE_TEST_HOOKS: "1" },
-    encoding: "utf8"
-  });
-  if (build.status !== 0)
-    throw new Error(`${build.stdout ?? ""}\n${build.stderr ?? ""}`.trim() || "Web build failed");
+  // --skip-build reuses an existing apps/web/dist that was built with VITE_TEST_HOOKS=1.
+  if (!skipBuild) {
+    const build = spawnSync(process.execPath, [viteEntry, "build"], {
+      cwd: webDir,
+      env: { ...process.env, VITE_TEST_HOOKS: "1" },
+      encoding: "utf8"
+    });
+    if (build.status !== 0)
+      throw new Error(`${build.stdout ?? ""}\n${build.stderr ?? ""}`.trim() || "Web build failed");
+  }
 
   const preview = spawn(
     process.execPath,
@@ -302,7 +326,7 @@ export const runInteractionBenchmark = async () => {
     engines.push(await runEngineWorkflow("webkit", webkit, false));
     const chromiumEvidence = engines[0];
     const status =
-      engines.every((engine) => engine.workflow === "pass") &&
+      engines.every((engine) => engine.workflow === "pass" && engine.metricProvenance === "pass") &&
       chromiumEvidence?.performance?.status === "pass" &&
       chromiumEvidence?.designerPerformance?.status === "pass" &&
       chromiumEvidence.offlineReload
@@ -316,12 +340,13 @@ export const runInteractionBenchmark = async () => {
       routes: ["/workbench", "/designer", "/report"],
       browserEvidence: engines,
       checks: {
-        renderedReferenceParity: "pass",
-        sourceProvenance: "pass",
-        axeSeriousCritical: "pass",
-        keyboardAndCanvasAlternative: "pass",
-        localSaveExportImport: "pass",
         serviceWorkerOfflineReload: chromiumEvidence?.offlineReload ? "pass" : "fail"
+      },
+      notMeasuredHere: {
+        renderedReferenceParity: "npm run test:visual",
+        axeSeriousCritical: "npm run test:a11y",
+        keyboardAndCanvasAlternative: "npm run test:e2e",
+        localSaveExportImport: "npm run test:e2e"
       },
       thresholds: {
         inputP95Ms: 100,
@@ -342,7 +367,9 @@ const runFromCli = async () => {
     outputIndex >= 0 && process.argv[outputIndex + 1]
       ? resolve(rootDir, process.argv[outputIndex + 1])
       : resolve(rootDir, "docs", "architecture", "evidence", "browser-offline-spike.json");
-  const evidence = await runInteractionBenchmark();
+  const evidence = await runInteractionBenchmark({
+    skipBuild: process.argv.includes("--skip-build")
+  });
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, JSON.stringify(evidence, null, 2));
   process.stdout.write(`Wrote browser evidence: ${outputPath}\n`);

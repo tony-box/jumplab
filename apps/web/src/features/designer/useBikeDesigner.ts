@@ -11,7 +11,7 @@ import {
 import { useAppServices } from "../../app/AppProviders";
 import { selectStoreActions, useAppStore } from "../../state/store";
 import {
-  bikeDimensionGroups,
+  bikeDimensionFieldsFor,
   fromBikeDisplayValue,
   toBikeDisplayValue,
   type BikeDimensionField,
@@ -19,8 +19,6 @@ import {
 } from "./bike-dimensions";
 
 type DraftValues = Record<BikeDimensionPath, number>;
-
-const fields = bikeDimensionGroups.flatMap((group) => group.fields);
 
 const valueAt = (bike: BikeSpec, path: BikeDimensionPath): number => {
   const [owner, key] = path.split(".") as [string, string | undefined];
@@ -32,7 +30,10 @@ const valueAt = (bike: BikeSpec, path: BikeDimensionPath): number => {
 
 const valuesFromBike = (bike: BikeSpec): DraftValues =>
   Object.fromEntries(
-    fields.map((field) => [field.path, toBikeDisplayValue(valueAt(bike, field.path), field.unit)])
+    bikeDimensionFieldsFor(bike).map((field) => [
+      field.path,
+      toBikeDisplayValue(valueAt(bike, field.path), field.unit)
+    ])
   ) as DraftValues;
 
 const setPath = (bike: BikeSpec, field: BikeDimensionField, displayValue: number): BikeSpec => {
@@ -48,10 +49,13 @@ const setPath = (bike: BikeSpec, field: BikeDimensionField, displayValue: number
 };
 
 const bikeFromValues = (base: BikeSpec, values: DraftValues): BikeSpec =>
-  fields.reduce((bike, field) => setPath(bike, field, values[field.path]), base);
+  bikeDimensionFieldsFor(base).reduce(
+    (bike, field) => (field.path in values ? setPath(bike, field, values[field.path]) : bike),
+    base
+  );
 
-const rangeIssues = (values: DraftValues): GeometryIssue[] =>
-  fields.flatMap((field) => {
+const rangeIssues = (values: DraftValues, bike: BikeSpec): GeometryIssue[] =>
+  bikeDimensionFieldsFor(bike).flatMap((field) => {
     const value = values[field.path];
     if (Number.isFinite(value) && value >= field.minimum && value <= field.maximum) return [];
     return [
@@ -77,8 +81,16 @@ export const useBikeDesigner = (scenario: Scenario | null) => {
   const [status, setStatus] = useState<"idle" | "pending" | "valid" | "invalid" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
+  const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appliedBikeRef = useRef<string | null>(scenario ? JSON.stringify(scenario.bike) : null);
   const riderRef = useRef<string | null>(scenario ? JSON.stringify(scenario.rider) : null);
+
+  useEffect(
+    () => () => {
+      if (applyTimerRef.current !== null) clearTimeout(applyTimerRef.current);
+    },
+    []
+  );
 
   const inspectAndApply = useCallback(
     async (candidateBike: BikeSpec, candidateValues: DraftValues, apply: boolean) => {
@@ -159,7 +171,7 @@ export const useBikeDesigner = (scenario: Scenario | null) => {
       if (!scenario || !values) return;
       const nextValues = { ...values, [path]: displayValue };
       setValues(nextValues);
-      const structuralIssues = rangeIssues(nextValues);
+      const structuralIssues = rangeIssues(nextValues, draftBike ?? scenario.bike);
       if (structuralIssues.length > 0) {
         ++requestRef.current;
         setIssues(structuralIssues);
@@ -185,7 +197,9 @@ export const useBikeDesigner = (scenario: Scenario | null) => {
       setDraftBike(candidate.data);
       setStatus("pending");
       const requestId = ++requestRef.current;
-      setTimeout(() => {
+      if (applyTimerRef.current !== null) clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = setTimeout(() => {
+        applyTimerRef.current = null;
         if (requestId !== requestRef.current) return;
         --requestRef.current;
         void inspectAndApply(candidate.data, nextValues, true);
@@ -211,8 +225,13 @@ export const useBikeDesigner = (scenario: Scenario | null) => {
         frameType,
         rearShock
       });
+      const shockValues = Object.fromEntries(
+        Object.entries(valuesFromBike(candidate)).filter(([path]) => path.startsWith("rearShock."))
+      );
+      const nextValues = { ...values, ...shockValues } as DraftValues;
       setDraftBike(candidate);
-      void inspectAndApply(candidate, values, true);
+      setValues(nextValues);
+      void inspectAndApply(candidate, nextValues, true);
     },
     [draftBike, inspectAndApply, scenario, values]
   );

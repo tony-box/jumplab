@@ -14,33 +14,27 @@ Every boundary change increments its version, adds a registry entry, and supplie
 migration or an explicit rejection. Migrations must preserve canonical scenario meaning and must run
 before persistence commit. Removing a supported version requires a superseding decision.
 
-Dependency upgrades require lockfile integrity and license checks, a vulnerability audit, native/WASM
-hash parity, deterministic visual baselines, browser workflows, and regenerated evidence. Solver,
+Dependency upgrades require a clean `npm audit`, native/WASM hash parity, the physics acceptance
+tests, and passing browser workflows. Solver,
 model, schema, protocol, frame-layout, app, Rust, and major dependency versions are published in the
 TypeScript and Rust manifests.
 
 ## Current boundary
 
-The current boundary is scenario schema 3, worker protocol 3, frame layout 2, persistence 2,
-geometry model 1, and mass-distribution model 1. The published model is
-`rigid-two-wheel-contact-v4-geometry-v1-mass-distribution-v1`; the solver is
-`rapier-0.35.2-two-wheel-contact-v5-geometry-v1-mass-distribution-v1`.
+The current boundary is scenario schema 4, worker protocol 4, frame layout 3, telemetry layout 2,
+geometry model 1 and mass-distribution model 2. The model is
+`two-body-rider-coupling-v1-geometry-v1-mass-distribution-v2`; the solver is
+`rapier-0.35.2-two-body-v6-geometry-v1-mass-distribution-v2`. The Rust core publishes these in
+`versionsJson`, and the worker refuses a core whose versions or layouts differ from the app's.
 
-Scenario v1 migrates through v2 to v3, and v2 migrates deterministically to v3. Migration preserves
-existing identifiers, bike values, and pose targets while materializing explicit measured geometry;
-derived geometry issues, contacts, envelopes, CoG, and inertia are recomputed rather than persisted.
-Protocol v1 similarly migrates through v2 to v3. Frame layout and persistence remain at version 2.
-
+Scenarios migrate step by step from v1 to v4; a step that doesn't advance the version is an error,
+not a loop. The v3→v4 step derives circular-arc kicker lengths, replaces the old PD gains with the
+rider coupling and instinct defaults, and raises the physics rate to at least 240 Hz. Stored runs
+are never migrated: their snapshot hash is checked against the stored, unmigrated scenario, and runs
+from older frame layouts are re-solved from that snapshot.
 `/designer` is the canonical authoring route. `/pose` is a compatibility alias implemented as
 replacement navigation and is retained in the offline precache so old bookmarks do not add a
 history entry or require network access.
-
-## Decision lifecycle
-
-Allowed transitions are `draft -> provisionally-approved -> evidence-complete -> approved ->
-superseded`. Evidence must be no more than 60 days old. Exceptions require an owner, rationale,
-expiry, and affected gates; expired exceptions fail validation. Final approval requires explicit
-maintainer sign-off. Supersession names the replacement decision and retains the prior record.
 
 ## Revisit triggers
 
@@ -49,6 +43,3 @@ maintainer sign-off. Supersession names the replacement decision and retains the
 - Benchmark thresholds regress without a deterministic remediation.
 - A critical vulnerability cannot be patched within the pinned stack.
 - Product scope adds collaboration, server authority, 3D, or a materially different physics model.
-
-The fallback is the TypeScript/Rapier worker candidate only after its deterministic ownership and all
-hard gates are re-evaluated. No fallback may silently change result meaning.

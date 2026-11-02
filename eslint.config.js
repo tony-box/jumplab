@@ -1,3 +1,4 @@
+import { typescriptConfigs } from "@bike-jumper/eslint-config";
 import js from "@eslint/js";
 
 export default [
@@ -15,11 +16,11 @@ export default [
       "crates/physics-core/pkg/**",
       "crates/physics-core/pkg-benchmark-node/**",
       "crates/physics-core/pkg-node/**",
-      "apps/web/public/physics/**",
-      "**/*.{ts,tsx,mts,cts}"
+      "apps/web/public/physics/**"
     ]
   },
   js.configs.recommended,
+  ...typescriptConfigs,
   {
     files: ["**/*.{js,mjs,cjs}"],
     languageOptions: {

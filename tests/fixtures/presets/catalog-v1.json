@@ -24,7 +24,12 @@
       }
     },
     "readOnly": true,
-    "speedWindow": null
+    "speedWindow": {
+      "minimum": 10.25,
+      "maximum": 11.3125,
+      "status": "measured",
+      "reason": null
+    }
   },
   {
     "id": "jump-steep-lip-deliberately-long-name-preset",
@@ -51,7 +56,12 @@
       }
     },
     "readOnly": true,
-    "speedWindow": null
+    "speedWindow": {
+      "minimum": 10.5625,
+      "maximum": 11.03125,
+      "status": "measured",
+      "reason": null
+    }
   },
   {
     "id": "jump-stepup-training",
@@ -82,7 +92,7 @@
       "minimum": 0,
       "maximum": 0,
       "status": "unavailable",
-      "reason": "Awaiting validated step-up speed-window envelope"
+      "reason": "no entry speed between 2 and 18 m/s lands cleanly"
     }
   },
   {
