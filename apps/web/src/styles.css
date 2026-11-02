@@ -263,6 +263,19 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.scenario-file-buttons {
+  display: flex;
+  gap: 8px;
+}
+.scenario-file-message {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.scenario-file-message.is-error {
+  color: var(--danger);
+}
 .field {
   margin-bottom: 12px;
 }

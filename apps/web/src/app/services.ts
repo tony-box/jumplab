@@ -82,6 +82,12 @@ export type RunArtifactRepository = {
   remove: (runId: string) => Promise<void>;
 };
 
+export type ScenarioStore = {
+  /** The most recently saved working scenario, migrated to the current schema, if any. */
+  loadWorking: () => Promise<Scenario | null>;
+  saveWorking: (scenario: Scenario) => Promise<void>;
+};
+
 export type BaselineComparator = {
   compare: (current: RunArtifact | null, baseline: RunArtifact | null) => BaselineSelection;
 };
@@ -101,6 +107,7 @@ export type AppServices = {
   scenarioCatalog: ScenarioCatalog;
   solverGateway: SolverGateway;
   runArtifactRepository: RunArtifactRepository;
+  scenarioStore: ScenarioStore;
   baselineComparator: BaselineComparator;
   validationRunner: ValidationRunner;
   frameExporter: FrameExporter;

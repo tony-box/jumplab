@@ -6,6 +6,7 @@ import {
 } from "../../../../../packages/schema/src/index";
 
 import { Field, SegmentedControl } from "../../components/ui";
+import { ScenarioFileActions } from "./ScenarioFileActions";
 
 type InputRailProps = {
   scenario: Scenario;
@@ -143,6 +144,11 @@ const InputRailView = ({
         {renderControl(scenario, "rider-strength", supportedPaths, onControlChange)}
         {renderControl(scenario, "instinct-angle", supportedPaths, onControlChange)}
         {renderControl(scenario, "instinct-offset", supportedPaths, onControlChange)}
+      </section>
+
+      <section className="control-group" data-od-id="panel-scenario-file">
+        <h2>Scenario file</h2>
+        <ScenarioFileActions />
       </section>
     </aside>
   );

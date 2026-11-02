@@ -1,4 +1,5 @@
 import {
+  migrateScenarioValue,
   runArtifactSchema,
   runResultSchema,
   scenarioSchema,
@@ -30,9 +31,30 @@ const validationRunner = createValidationRunnerFromSuiteFixture(
 
 const workerSource = import.meta.env.VITE_WORKER_SOURCE === "fixture" ? "fixture" : "solver";
 
-const createRunArtifactRepository = (): AppServices["runArtifactRepository"] => {
-  const repositories = createRepositories(createDatabase());
+/** Runs carry full frame buffers, so only the newest ones are kept. */
+export const MAX_STORED_RUNS = 30;
 
+const createScenarioStore = (
+  repositories: ReturnType<typeof createRepositories>
+): AppServices["scenarioStore"] => ({
+  loadWorking: async () => {
+    const [latest] = await repositories.scenarios.list();
+    if (!latest) return null;
+    try {
+      return scenarioSchema.parse(migrateScenarioValue(latest.scenario));
+    } catch {
+      // A saved scenario that no longer validates is skipped rather than blocking startup.
+      return null;
+    }
+  },
+  saveWorking: async (scenario) => {
+    await repositories.scenarios.save(scenario);
+  }
+});
+
+const createRunArtifactRepository = (
+  repositories: ReturnType<typeof createRepositories>
+): AppServices["runArtifactRepository"] => {
   const toArtifact = (
     record: Awaited<ReturnType<typeof repositories.runs.get>>
   ): RunArtifact | null => {
@@ -56,6 +78,7 @@ const createRunArtifactRepository = (): AppServices["runArtifactRepository"] => 
   return {
     save: async (artifact) => {
       await repositories.runs.saveArtifact(artifact);
+      await repositories.runs.prune(MAX_STORED_RUNS);
       return structuredClone(artifact);
     },
     replaceSolution: async (runId, derivedSolution) => {
@@ -105,6 +128,7 @@ export const createDefaultAppServices = (): Partial<AppServices> => {
     workerSource === "fixture" ? async () => createFixtureWorkerRuntime(fixtureRun) : undefined;
   const solverGateway = createSolverGateway(runtimeFactory);
   const baseScenario = scenarioSchema.parse(standardScenarioJson);
+  const repositories = createRepositories(createDatabase());
 
   return {
     solverGateway,
@@ -112,7 +136,8 @@ export const createDefaultAppServices = (): Partial<AppServices> => {
       baseScenario,
       solverGateway
     }),
-    runArtifactRepository: createRunArtifactRepository(),
+    runArtifactRepository: createRunArtifactRepository(repositories),
+    scenarioStore: createScenarioStore(repositories),
     baselineComparator: {
       compare: compareArtifactsConservative
     },

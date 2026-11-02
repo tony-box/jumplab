@@ -217,6 +217,12 @@ export const createRepositories = (database: BikeJumperDatabase) => ({
         .reverse()
         .toArray()
         .then((records) => records.map(cloneRunRecord)),
-    remove: (runId: string) => database.runs.delete(runId)
+    remove: (runId: string) => database.runs.delete(runId),
+    /** Deletes all but the newest `keep` runs, reading keys only. */
+    prune: async (keep: number): Promise<number> => {
+      const expired = await database.runs.orderBy("createdAt").reverse().offset(keep).primaryKeys();
+      await database.runs.bulkDelete(expired);
+      return expired.length;
+    }
   }
 });

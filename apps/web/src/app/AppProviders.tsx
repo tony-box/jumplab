@@ -7,6 +7,7 @@ import {
   type FrameExporter,
   type RunArtifactRepository,
   type ScenarioCatalog,
+  type ScenarioStore,
   type SolverGateway,
   type ValidationRunner
 } from "./services";
@@ -71,6 +72,11 @@ const emptyRunRepository: RunArtifactRepository = {
   getStored: async () => null,
   list: async () => [],
   remove: async () => undefined
+};
+
+const emptyScenarioStore: ScenarioStore = {
+  loadWorking: async () => null,
+  saveWorking: async () => undefined
 };
 
 const baselineComparator: BaselineComparator = {
@@ -146,6 +152,7 @@ const defaultServices: AppServices = {
   scenarioCatalog: emptyScenarioCatalog,
   solverGateway: emptySolverGateway,
   runArtifactRepository: emptyRunRepository,
+  scenarioStore: emptyScenarioStore,
   baselineComparator,
   validationRunner: emptyValidationRunner,
   frameExporter: emptyFrameExporter

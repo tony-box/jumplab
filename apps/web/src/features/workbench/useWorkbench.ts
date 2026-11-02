@@ -159,9 +159,13 @@ export const useWorkbench = () => {
 
     const prepare = async () => {
       try {
-        const hash = await hashScenario(defaultWorkbenchScenario);
-        if (!useAppStore.getState().scenario.scenario && active) {
-          actions.setScenario(defaultWorkbenchScenario, hash);
+        if (!useAppStore.getState().scenario.scenario) {
+          const restored = await services.scenarioStore.loadWorking().catch(() => null);
+          const initial = restored ?? defaultWorkbenchScenario;
+          const hash = await hashScenario(initial);
+          if (!useAppStore.getState().scenario.scenario && active) {
+            actions.setScenario(initial, hash);
+          }
         }
 
         const manifest = await services.solverGateway.initialize(
@@ -186,7 +190,7 @@ export const useWorkbench = () => {
     return () => {
       active = false;
     };
-  }, [actions, services.solverGateway]);
+  }, [actions, services.scenarioStore, services.solverGateway]);
 
   useEffect(() => {
     let active = true;

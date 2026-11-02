@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 
+import { useScenarioAutosave } from "./app/useScenarioAutosave";
 import { DesignerPage } from "./features/designer/DesignerPage";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { ReportPage } from "./features/report/ReportPage";
@@ -42,9 +43,15 @@ const RouteBoundary = ({ children }: { children: ReactNode }) => {
   return <AppErrorBoundary key={pathname}>{children}</AppErrorBoundary>;
 };
 
+const ScenarioAutosave = () => {
+  useScenarioAutosave();
+  return null;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ScenarioAutosave />
       <RouteBoundary>
         <Routes>
           <Route path="/" element={<Navigate to="/workbench" replace />} />

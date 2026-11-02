@@ -152,8 +152,10 @@ export const useDesignerEditor = () => {
     const prepare = async () => {
       try {
         if (!useAppStore.getState().scenario.scenario) {
-          const hash = await hashScenario(defaultScenario);
-          actions.setScenario(defaultScenario, hash);
+          const restored = await services.scenarioStore.loadWorking().catch(() => null);
+          const initial = restored ?? defaultScenario;
+          const hash = await hashScenario(initial);
+          if (!useAppStore.getState().scenario.scenario) actions.setScenario(initial, hash);
         }
 
         const manifest = await services.solverGateway.initialize(
@@ -182,7 +184,7 @@ export const useDesignerEditor = () => {
     return () => {
       active = false;
     };
-  }, [actions, services.solverGateway]);
+  }, [actions, services.scenarioStore, services.solverGateway]);
 
   useEffect(() => {
     if (!scenario) {

@@ -36,6 +36,28 @@ describe("offline persistence", () => {
     await Dexie.delete(name);
   });
 
+  it("prunes all but the newest runs without reading their buffers", async () => {
+    const repositories = createRepositories(database);
+    const ids = Array.from(
+      { length: 4 },
+      (_, index) => `00000000-0000-4000-8000-00000000000${index}`
+    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    for (const [index, runId] of ids.entries()) {
+      vi.setSystemTime(new Date(`2026-01-0${index + 1}T00:00:00.000Z`));
+      await repositories.runs.save(
+        scenario.id,
+        { ...result, runId },
+        new Float32Array([index]).buffer,
+        new Float32Array([index]).buffer
+      );
+    }
+    vi.useRealTimers();
+
+    expect(await repositories.runs.prune(2)).toBe(2);
+    expect((await repositories.runs.list()).map((run) => run.runId)).toEqual([ids[3], ids[2]]);
+  });
+
   it("saves scenarios and immutable run buffers in versioned Dexie stores", async () => {
     const repositories = createRepositories(database);
     const contentHash = await hashScenario(scenario);
