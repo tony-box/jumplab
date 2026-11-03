@@ -104,29 +104,21 @@ const extentOf = (points: Point2[]): ModelExtent => ({
   maxY: Math.max(...points.map((point) => point.y))
 });
 
+/** Clearance above a standing rider's head kept inside the framed rig. */
+const RIDER_HEADROOM_M = 0.05;
+
+/**
+ * Fixed outline of the rig used for camera framing: the bike plus a standing rider of the
+ * scenario's height. The live rider pose is deliberately left out, or the follow camera zooms
+ * and shifts every time the rider compresses or extends (most visibly on landing).
+ */
 export const modelExtent = (
   scenario: Scenario,
   frame: WorkbenchFrame,
   bike: BikeGeometry,
-  rider: ReturnType<typeof worldRiderGeometry>
+  _rider?: ReturnType<typeof worldRiderGeometry>
 ): ModelExtent => {
   const points: Point2[] = canonicalGeometryPoints(bike);
-  if (rider.available) {
-    points.push(
-      rider.head,
-      rider.shoulder,
-      rider.hip,
-      rider.nearArm.middle,
-      rider.nearArm.distal,
-      rider.farArm.middle,
-      rider.farArm.distal,
-      rider.nearLeg.middle,
-      rider.nearLeg.distal,
-      rider.farLeg.middle,
-      rider.farLeg.distal
-    );
-  }
-
   // Measure the rig in its own frame; otherwise a spinning bike pumps the follow zoom.
   const cos = Math.cos(frame.pitch);
   const sin = Math.sin(frame.pitch);
@@ -136,9 +128,7 @@ export const modelExtent = (
     return { x: frame.x + dx * cos + dy * sin, y: frame.y - dx * sin + dy * cos };
   });
 
-  if (!rider.available) {
-    upright.push({ x: frame.x, y: frame.y + scenario.rider.height });
-  }
+  upright.push({ x: frame.x, y: frame.y + scenario.rider.height + RIDER_HEADROOM_M });
 
   return extentOf(upright);
 };
