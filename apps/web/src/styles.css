@@ -1313,13 +1313,15 @@ input[type="range"].reach-track::-moz-range-thumb {
 }
 .jump-marker-labels {
   position: relative;
-  height: 16px;
+  min-height: 16px;
   margin-inline: 6px;
   margin-bottom: 2px;
 }
 .jump-marker-label {
   position: absolute;
   bottom: 0;
+  padding: 0 2px;
+  background: var(--surface);
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 600;
@@ -1335,6 +1337,22 @@ input[type="range"].reach-track::-moz-range-thumb {
 }
 .jump-marker-label.at-end {
   transform: translateX(-100%);
+}
+/* Raised labels keep a leader down to their marker line. */
+.jump-marker-label::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  height: var(--leader, 0);
+  border-left: 1px dashed #8a959e;
+}
+.jump-marker-label.at-start::after {
+  left: 0;
+}
+.jump-marker-label.at-end::after {
+  right: 0;
+  left: auto;
 }
 .distance-bar .preview-line {
   position: absolute;

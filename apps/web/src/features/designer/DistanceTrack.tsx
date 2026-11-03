@@ -1,5 +1,5 @@
 import { Pause, Play } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { PoseClip } from "../../../../../packages/schema/src/index";
 
@@ -19,6 +19,28 @@ type DistanceTrackProps = {
   markers?: JumpMarker[];
   /** Distance range across the strip; defaults to the keys. */
   domain?: { start: number; end: number };
+};
+
+const LABEL_ROW_PX = 13;
+/** Gap kept between two marker labels on the same row, in CSS pixels. */
+const LABEL_GAP_PX = 6;
+
+type LabelBox = { id: string; left: number; right: number };
+
+/**
+ * Assigns each label the lowest row where it doesn't overlap a label already placed, scanning
+ * left to right. Row 0 sits directly above the strip.
+ */
+export const stackLabels = (boxes: LabelBox[]): Record<string, number> => {
+  const rowEnds: number[] = [];
+  const rows: Record<string, number> = {};
+  for (const box of [...boxes].sort((a, b) => a.left - b.left)) {
+    let row = rowEnds.findIndex((end) => box.left >= end + LABEL_GAP_PX);
+    if (row < 0) row = rowEnds.length;
+    rowEnds[row] = box.right;
+    rows[box.id] = row;
+  }
+  return rows;
 };
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -46,6 +68,9 @@ export const DistanceTrack = ({
   domain
 }: DistanceTrackProps) => {
   const barRef = useRef<HTMLDivElement | null>(null);
+  const labelsRef = useRef<HTMLDivElement | null>(null);
+  const [labelRows, setLabelRows] = useState<Record<string, number>>({});
+  const [labelsWidth, setLabelsWidth] = useState(0);
   const stopDragRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => stopDragRef.current?.(), []);
@@ -64,6 +89,35 @@ export const DistanceTrack = ({
     { start: first, end: last }
   );
   const visibleMarkers = markers.filter((marker) => marker.s >= first && marker.s <= last);
+  const markerSignature = visibleMarkers
+    .map((marker) => `${marker.id}:${percentAt(marker.s).toFixed(3)}`)
+    .join("|");
+
+  useEffect(() => {
+    const container = labelsRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setLabelsWidth(container.clientWidth));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [markerSignature]);
+
+  // Labels are measured after layout, so nearby markers stack instead of overlapping.
+  useLayoutEffect(() => {
+    const container = labelsRef.current;
+    if (!container) return;
+    const origin = container.getBoundingClientRect().left;
+    const boxes = [...container.querySelectorAll<HTMLElement>("[data-marker-id]")].map((label) => {
+      const rect = label.getBoundingClientRect();
+      return {
+        id: label.dataset.markerId ?? "",
+        left: rect.left - origin,
+        right: rect.right - origin
+      };
+    });
+    const next = stackLabels(boxes);
+    setLabelRows((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+  }, [markerSignature, labelsWidth]);
+  const rowCount = Math.max(1, ...Object.values(labelRows).map((row) => row + 1));
 
   const pointerToS = (clientX: number): number => {
     const bar = barRef.current;
@@ -101,14 +155,26 @@ export const DistanceTrack = ({
       </div>
 
       {visibleMarkers.length > 0 ? (
-        <div className="jump-marker-labels" aria-hidden="true">
+        <div
+          ref={labelsRef}
+          className="jump-marker-labels"
+          aria-hidden="true"
+          style={{ height: `${String(rowCount * LABEL_ROW_PX + 2)}px` }}
+        >
           {visibleMarkers.map((marker) => (
             <span
               key={marker.id}
+              data-marker-id={marker.id}
               className={`jump-marker-label jump-marker-${marker.id}${
                 percentAt(marker.s) < 8 ? " at-start" : percentAt(marker.s) > 92 ? " at-end" : ""
               }`}
-              style={{ left: `${String(percentAt(marker.s))}%` }}
+              style={{
+                left: `${String(percentAt(marker.s))}%`,
+                bottom: `${String((labelRows[marker.id] ?? 0) * LABEL_ROW_PX)}px`,
+                // Lower rows sit above the leaders of raised labels.
+                zIndex: 10 - (labelRows[marker.id] ?? 0),
+                ["--leader" as string]: `${String((labelRows[marker.id] ?? 0) * LABEL_ROW_PX + 2)}px`
+              }}
             >
               {marker.label}
             </span>
