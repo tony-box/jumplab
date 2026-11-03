@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { NavLink } from "react-router";
 
 import { Button } from "./Button";
@@ -17,6 +17,23 @@ type AppShellProps = {
   onPrimary: () => void;
 };
 
+/** Memoized: pages re-render every playback frame, and the router links needn't follow. */
+const PrimaryNav = memo(() => (
+  <>
+    <NavLink className="product-mark" data-od-id="product-mark" to="/workbench">
+      JUMP LAB <span>2D · v0.4</span>
+    </NavLink>
+    <nav className="primary-nav" data-od-id="primary-nav" aria-label="Primary">
+      <NavLink to="/workbench">Workbench</NavLink>
+      <NavLink to="/library">Library</NavLink>
+      <NavLink to="/designer">Designer</NavLink>
+      <NavLink to="/report">Report</NavLink>
+      <NavLink to="/validation">Validation</NavLink>
+    </nav>
+  </>
+));
+PrimaryNav.displayName = "PrimaryNav";
+
 export const AppShell = ({
   children,
   scenarioLabel,
@@ -31,16 +48,7 @@ export const AppShell = ({
 }: AppShellProps) => (
   <div className="app-shell">
     <header className="topbar" data-od-id="topbar">
-      <NavLink className="product-mark" data-od-id="product-mark" to="/workbench">
-        JUMP LAB <span>2D · v0.4</span>
-      </NavLink>
-      <nav className="primary-nav" data-od-id="primary-nav" aria-label="Primary">
-        <NavLink to="/workbench">Workbench</NavLink>
-        <NavLink to="/library">Library</NavLink>
-        <NavLink to="/designer">Designer</NavLink>
-        <NavLink to="/report">Report</NavLink>
-        <NavLink to="/validation">Validation</NavLink>
-      </nav>
+      <PrimaryNav />
       <span className="spacer" />
       <div className="scenario-chip" data-od-id="scenario-chip">
         <span>Scenario</span>

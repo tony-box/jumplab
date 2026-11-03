@@ -27,20 +27,21 @@ export const DesignerPage = () => {
   }, [editor.keyframes, markers]);
   const preview = usePosePreview(editor.scenario, editor.keyframes, editor.interpolation, domain);
   const { exit: exitPreview } = preview;
+  const { selectKey: editorSelectKey, selectByIndex: editorSelectByIndex } = editor;
   // Choosing a key always returns to editing it, even if it was already selected.
   const selectKey = useCallback(
     (keyId: string) => {
       exitPreview();
-      editor.selectKey(keyId);
+      editorSelectKey(keyId);
     },
-    [editor, exitPreview]
+    [editorSelectKey, exitPreview]
   );
   const selectByIndex = useCallback(
     (index: number) => {
       exitPreview();
-      editor.selectByIndex(index);
+      editorSelectByIndex(index);
     },
-    [editor, exitPreview]
+    [editorSelectByIndex, exitPreview]
   );
   useEffect(() => exitPreview(), [exitPreview, mode]);
   const previewing = mode === "pose" && preview.s !== null;

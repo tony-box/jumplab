@@ -211,13 +211,19 @@ export const DesignerStage = ({
             }}
           />
 
-          <p className="sr-only" aria-live="polite">
-            Pose sample at {selectedS.toFixed(2)} metres{previewing ? " (clip preview)" : ""}.
-            Target knee {toDegrees(selectedTargets.knee)}, hip {toDegrees(selectedTargets.hip)},
-            spine {toDegrees(selectedTargets.spine)}. Calculated elbow{" "}
-            {toDegrees(sample?.derivedArm.elbow ?? 0)}.{" "}
-            {saturated ? "Constrained to finite reachable limits." : "Within requested limits."}{" "}
-            Bike fit is shown schematically; wheels and rider contacts are measured.
+          <p className="sr-only" aria-live={previewing ? "off" : "polite"}>
+            {previewing ? (
+              "Previewing the pose clip. Pause and select a key to edit it."
+            ) : (
+              <>
+                Pose sample at {selectedS.toFixed(2)} metres{previewing ? " (clip preview)" : ""}.
+                Target knee {toDegrees(selectedTargets.knee)}, hip {toDegrees(selectedTargets.hip)},
+                spine {toDegrees(selectedTargets.spine)}. Calculated elbow{" "}
+                {toDegrees(sample?.derivedArm.elbow ?? 0)}.{" "}
+                {saturated ? "Constrained to finite reachable limits." : "Within requested limits."}{" "}
+                Bike fit is shown schematically; wheels and rider contacts are measured.
+              </>
+            )}
           </p>
 
           <div className="stage-badge top-left">

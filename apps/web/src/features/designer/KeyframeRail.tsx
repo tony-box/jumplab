@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { PoseClip } from "../../../../../packages/schema/src/index";
 
 import { Button } from "../../components/ui";
@@ -13,7 +14,7 @@ type KeyframeRailProps = {
   onInterpolationChange: (value: PoseClip["interpolation"]) => void;
 };
 
-export const KeyframeRail = ({
+const KeyframeRailView = ({
   keyframes,
   selectedKeyId,
   interpolation,
@@ -122,3 +123,6 @@ export const KeyframeRail = ({
     </aside>
   );
 };
+
+/** Memoized so clip preview, which re-renders the page every frame, skips this rail. */
+export const KeyframeRail = memo(KeyframeRailView);

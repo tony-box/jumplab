@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type {
   DesignConflict,
   PoseKeyValidation,
@@ -25,7 +26,7 @@ type JointRailProps = {
   onTargetChange: (joint: JointName, value: number) => void;
 };
 
-export const JointRail = ({
+const JointRailView = ({
   scenario,
   selectedS,
   selectedTargets,
@@ -156,3 +157,6 @@ export const JointRail = ({
     </aside>
   );
 };
+
+/** Memoized so clip preview, which re-renders the page every frame, skips this rail. */
+export const JointRail = memo(JointRailView);

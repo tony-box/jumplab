@@ -50,6 +50,8 @@ button {
   outline-offset: 2px;
 }
 .sr-only {
+  /* Live text changes every playback frame; keep its layout to itself. */
+  contain: strict;
   position: absolute;
   width: 1px;
   height: 1px;
@@ -352,7 +354,10 @@ input[type="range"].reach-track::-moz-range-thumb {
   background: #dbe3e8;
 }
 
+/* Playback changes text and canvases here every frame. Containment keeps those updates from
+   re-laying out the rails and the rest of the page. */
 .stage-column {
+  contain: layout paint style;
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -424,6 +429,7 @@ input[type="range"].reach-track::-moz-range-thumb {
   white-space: nowrap;
 }
 .stage {
+  contain: layout paint style;
   position: relative;
   min-height: 180px;
   margin: 12px;
@@ -431,6 +437,13 @@ input[type="range"].reach-track::-moz-range-thumb {
   border: 1px solid var(--stage-border);
   border-radius: 8px;
   background: var(--stage);
+}
+/* On the desktop grid the stage is sized by its track, never by its content, so it can also
+   be size-contained. Narrow layouts size it from content and must not. */
+@media (min-width: 861px) {
+  .stage {
+    contain: strict;
+  }
 }
 .stage canvas {
   display: block;
@@ -1391,7 +1404,14 @@ input[type="range"].reach-track::-moz-range-thumb {
   margin: 8px 6px 0;
 }
 .distance-readout {
-  min-width: 0;
+  contain: strict;
+  display: inline-block;
+  width: 26ch;
+  max-width: 100%;
+  height: 1.5em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--muted);
   font: 12px var(--mono);
   font-variant-numeric: tabular-nums;

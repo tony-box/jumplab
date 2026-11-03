@@ -1,5 +1,5 @@
 import { Pause, Play } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { PoseClip } from "../../../../../packages/schema/src/index";
 
@@ -80,13 +80,14 @@ export const DistanceTrack = ({
   const span = Math.max(0.001, last - first);
   const percentAt = (s: number) => ((s - first) / span) * 100;
 
-  const curves = buildChannelCurves(
-    keyframes,
-    interpolation,
-    CHANNEL_JOINTS,
-    VIEW_WIDTH,
-    VIEW_HEIGHT,
-    { start: first, end: last }
+  // Curves only change with the keys, so playback frames reuse them.
+  const curves = useMemo(
+    () =>
+      buildChannelCurves(keyframes, interpolation, CHANNEL_JOINTS, VIEW_WIDTH, VIEW_HEIGHT, {
+        start: first,
+        end: last
+      }),
+    [first, interpolation, keyframes, last]
   );
   const visibleMarkers = markers.filter((marker) => marker.s >= first && marker.s <= last);
   const markerSignature = visibleMarkers
