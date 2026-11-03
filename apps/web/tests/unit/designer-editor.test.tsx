@@ -141,6 +141,33 @@ describe("pose editor", () => {
     cleanup();
   });
 
+  it("previews the interpolated pose along the clip and returns to key editing", async () => {
+    const samplePose = vi.fn(async (_scenario: Scenario, s: number) => createSample(s));
+    renderWithProviders(<DesignerPage />, {
+      services: { solverGateway: createSolverGateway({ samplePose }) }
+    });
+
+    const scrubber = await screen.findByLabelText("Preview position along the run");
+    const readout = () => document.querySelector('[data-od-id="preview-readout"]')?.textContent;
+    expect(readout()).toBe("Editing keys");
+
+    const keys = useAppStore.getState().scenario.scenario!.poseClip.keys;
+    const middle = Number(((keys[0]!.s + keys[keys.length - 1]!.s) / 2).toFixed(2));
+    fireEvent.change(scrubber, { target: { value: String(middle) } });
+    await waitFor(() => expect(readout()).toContain(`s = ${middle.toFixed(2)} m`));
+    await waitFor(() => expect(samplePose).toHaveBeenCalledWith(expect.anything(), middle));
+    expect(screen.getByText("clip preview")).toBeVisible();
+    expect(screen.getByText(/Previewing the pose between keys/)).toBeVisible();
+
+    const firstKey = useAppStore.getState().scenario.scenario!.poseClip.keys[0]!;
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Select ${firstKey.label} at ${firstKey.s.toFixed(2)} metres`
+      })
+    );
+    await waitFor(() => expect(readout()).toBe("Editing keys"));
+    expect(screen.queryByText("clip preview")).toBeNull();
+  });
   it("commits constrained core targets and preserves the last valid targets", async () => {
     const scenario = useAppStore.getState().scenario.scenario as Scenario;
     const original = scenario.poseClip.keys[0]!.targets;

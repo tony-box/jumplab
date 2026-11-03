@@ -1308,6 +1308,69 @@ input[type="range"].reach-track::-moz-range-thumb {
   opacity: 0.45;
   transform: translateX(-50%);
 }
+.distance-bar .preview-line {
+  position: absolute;
+  z-index: 2;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent-dark);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* The thumb's centre spans the bar exactly, so it sits over the preview line. */
+.distance-scrubber {
+  display: block;
+  width: calc(100% + 4px) !important;
+  margin: 6px -2px 0 !important;
+}
+.distance-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 6px;
+}
+.distance-key em {
+  margin-left: 8px;
+  color: var(--muted);
+  font-style: normal;
+}
+.distance-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 8px 6px 0;
+}
+.distance-readout {
+  min-width: 0;
+  color: var(--muted);
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.distance-readout strong {
+  color: #27313b;
+  font-family: var(--display);
+}
+.distance-rate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.distance-rate select {
+  min-height: 30px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: #27313b;
+  font: inherit;
+}
 .distance-bar .channel-curves {
   position: absolute;
   top: 4px;

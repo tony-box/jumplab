@@ -1,9 +1,12 @@
+import { Pause, Play } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import type { PoseClip } from "../../../../../packages/schema/src/index";
 
+import { Button } from "../../components/ui";
 import { buildChannelCurves } from "./pose-interpolation";
 import type { JointName } from "./pose-sampling";
+import { PREVIEW_RATES, type PosePreview, type PreviewRate } from "./usePosePreview";
 
 type DistanceTrackProps = {
   keyframes: Array<{ id: string; s: number; label: string; targets: Record<JointName, number> }>;
@@ -11,6 +14,7 @@ type DistanceTrackProps = {
   interpolation: PoseClip["interpolation"];
   onSelectKey: (keyId: string) => void;
   onMoveKey: (keyId: string, s: number) => void;
+  preview?: PosePreview;
 };
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -32,7 +36,8 @@ export const DistanceTrack = ({
   selectedKeyId,
   interpolation,
   onSelectKey,
-  onMoveKey
+  onMoveKey,
+  preview
 }: DistanceTrackProps) => {
   const barRef = useRef<HTMLDivElement | null>(null);
   const stopDragRef = useRef<(() => void) | null>(null);
@@ -78,7 +83,13 @@ export const DistanceTrack = ({
     <section className="distance-track" data-od-id="distance-track">
       <div className="distance-heading">
         <strong>Along-track distance</strong>
-        <span>hip &amp; spine target channels</span>
+        <span className="distance-key" data-od-id="channel-legend">
+          <span className="channel-swatch channel-hip" />
+          hip
+          <span className="channel-swatch channel-spine" />
+          spine
+          <em>{INTERPOLATION_HINT[interpolation]}</em>
+        </span>
       </div>
 
       <div
@@ -111,6 +122,13 @@ export const DistanceTrack = ({
         </svg>
         {lipPercent >= 0 && lipPercent <= 100 ? (
           <i className="lip-line" style={{ left: `${String(lipPercent)}%` }} />
+        ) : null}
+        {preview && preview.s !== null ? (
+          <i
+            className="preview-line"
+            data-od-id="preview-playhead"
+            style={{ left: `${String(((preview.s - first) / span) * 100)}%` }}
+          />
         ) : null}
         {keyframes.map((key) => {
           const left = ((key.s - first) / span) * 100;
@@ -151,13 +169,57 @@ export const DistanceTrack = ({
         })}
       </div>
 
-      <p className="distance-legend" data-od-id="channel-legend">
-        <span className="channel-swatch channel-hip" />
-        hip
-        <span className="channel-swatch channel-spine" />
-        spine
-        <em>{INTERPOLATION_HINT[interpolation]}</em>
-      </p>
+      {preview ? (
+        <>
+          <input
+            className="distance-scrubber"
+            data-od-id="preview-scrubber"
+            type="range"
+            min={first}
+            max={last}
+            step={0.01}
+            value={preview.s ?? first}
+            disabled={keyframes.length < 2}
+            aria-label="Preview position along the run"
+            aria-valuetext={`${(preview.s ?? first).toFixed(2)} metres, ${preview.label}`}
+            onChange={(event) => preview.scrubTo(event.currentTarget.valueAsNumber)}
+          />
+          <div className="distance-transport" data-od-id="preview-transport">
+            <Button
+              data-od-id="preview-play"
+              disabled={keyframes.length < 2}
+              icon={preview.playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
+              onClick={preview.toggle}
+            >
+              {preview.playing ? "Pause" : "Play clip"}
+            </Button>
+            <output className="distance-readout" data-od-id="preview-readout">
+              {preview.s === null ? (
+                "Editing keys"
+              ) : (
+                <>
+                  s = {preview.s.toFixed(2)} m · <strong>{preview.label}</strong>
+                </>
+              )}
+            </output>
+            <label className="distance-rate">
+              Speed
+              <select
+                value={preview.rate}
+                onChange={(event) =>
+                  preview.setRate(Number(event.currentTarget.value) as PreviewRate)
+                }
+              >
+                {PREVIEW_RATES.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate}× entry speed
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 };

@@ -7,11 +7,11 @@
     "tests/visual/designer.spec.ts-snapshots/designer-bike-valid-tablet-win32.png": "a84a20287037fd9112f9d09092f4c5fa0176d6043b3e0c4c3b4c699011298ac8",
     "tests/visual/designer.spec.ts-snapshots/designer-bike-valid-visual-win32.png": "7f17bdb62b4b6514bf0ae8b568cbcffeeb63217d28b8d4e8bb52b82d2a4407d3",
     "tests/visual/designer.spec.ts-snapshots/designer-multi-key-conflict-tablet-win32.png": "a3df223e1c9af4e7c6839c7cf343e369360c63f43f6a6002dbb9c7b1c6c42c92",
-    "tests/visual/designer.spec.ts-snapshots/designer-multi-key-conflict-visual-win32.png": "9cd698bd70be467b5d425d3d71392b8e5f5fe4a949d06d9d652f28ba30554147",
+    "tests/visual/designer.spec.ts-snapshots/designer-multi-key-conflict-visual-win32.png": "c609c65d78938b5d1fcab7ddc79383ebfe860e153535c23e6463eee841b63186",
     "tests/visual/designer.spec.ts-snapshots/designer-pose-constrained-tablet-win32.png": "b0ea72ad2335c101117572ffb11193fa66bba8a5367b4d003122a2c186570d09",
-    "tests/visual/designer.spec.ts-snapshots/designer-pose-constrained-visual-win32.png": "cadf1acd17c5cf70d222816f2d0a2c0080bb2e236405f3554b12c8f448b0963a",
+    "tests/visual/designer.spec.ts-snapshots/designer-pose-constrained-visual-win32.png": "4f652b9cd5d174092dc81618d7700c358a6706037e8e789c2cd71bdee98b8d40",
     "tests/visual/designer.spec.ts-snapshots/designer-pose-valid-tablet-win32.png": "4bf09e3fbf410a21015e9553e33c0cafa634c241782b424826136f53a6572153",
-    "tests/visual/designer.spec.ts-snapshots/designer-pose-valid-visual-win32.png": "df614b0fffb5fb2db5b22984f46153e0ad7ff5f6a5c176723fdd9ac91af8073a",
+    "tests/visual/designer.spec.ts-snapshots/designer-pose-valid-visual-win32.png": "73126589073e7cfd22bfe696a731162f1811d00b4f148af86562b21abc4cdcbc",
     "tests/visual/designer.spec.ts-snapshots/designer-tablet-tablet-win32.png": "bd5532ce4f6a9d6c48dca7ce96036e8000f842649e714f92271106197d17e11d"
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 
 import { AppShell, Callout } from "../../components/ui";
@@ -11,11 +11,31 @@ import { KeyframeRail } from "./KeyframeRail";
 import { DesignerStage } from "./DesignerStage";
 import { useBikeDesigner } from "./useBikeDesigner";
 import { useDesignerEditor } from "./useDesignerEditor";
+import { usePosePreview } from "./usePosePreview";
 
 export const DesignerPage = () => {
   const editor = useDesignerEditor();
   const bikeDesigner = useBikeDesigner(editor.scenario);
   const [mode, setMode] = useState<"bike" | "pose">("pose");
+  const preview = usePosePreview(editor.scenario, editor.keyframes, editor.interpolation);
+  const { exit: exitPreview } = preview;
+  // Choosing a key always returns to editing it, even if it was already selected.
+  const selectKey = useCallback(
+    (keyId: string) => {
+      exitPreview();
+      editor.selectKey(keyId);
+    },
+    [editor, exitPreview]
+  );
+  const selectByIndex = useCallback(
+    (index: number) => {
+      exitPreview();
+      editor.selectByIndex(index);
+    },
+    [editor, exitPreview]
+  );
+  useEffect(() => exitPreview(), [exitPreview, mode]);
+  const previewing = mode === "pose" && preview.s !== null;
 
   useEffect(() => {
     document.title = "Bike and Pose Designer | Jump Lab";
@@ -232,8 +252,8 @@ export const DesignerPage = () => {
                 keyframes={editor.keyframes}
                 selectedKeyId={editor.selectedKeyId}
                 interpolation={editor.interpolation}
-                onSelectByIndex={editor.selectByIndex}
-                onSelectKey={editor.selectKey}
+                onSelectByIndex={selectByIndex}
+                onSelectKey={selectKey}
                 onAddKeyframe={editor.addKeyframe}
                 onDeleteSelected={editor.deleteSelectedKey}
                 onInterpolationChange={editor.setInterpolationMode}
@@ -243,10 +263,13 @@ export const DesignerPage = () => {
             <section className="stage-column">
               <DesignerStage
                 scenario={editor.scenario}
-                selectedS={editor.selectedKey.s}
-                selectedLabel={editor.selectedKey.label}
-                selectedTargets={editor.selectedKey.targets}
-                sample={editor.sample}
+                selectedS={previewing ? (preview.s ?? 0) : editor.selectedKey.s}
+                selectedLabel={previewing ? preview.label : editor.selectedKey.label}
+                selectedTargets={
+                  previewing && preview.sample ? preview.sample.targets : editor.selectedKey.targets
+                }
+                sample={previewing ? (preview.sample ?? editor.sample) : editor.sample}
+                previewing={previewing}
                 feasibleLimits={editor.feasibleLimits}
                 envelopeLimits={editor.envelopeLimits}
                 saturated={editor.saturated}
@@ -264,8 +287,9 @@ export const DesignerPage = () => {
                   keyframes={editor.keyframes}
                   selectedKeyId={editor.selectedKeyId}
                   interpolation={editor.interpolation}
-                  onSelectKey={editor.selectKey}
+                  onSelectKey={selectKey}
                   onMoveKey={editor.moveKey}
+                  preview={preview}
                 />
               ) : null}
             </section>

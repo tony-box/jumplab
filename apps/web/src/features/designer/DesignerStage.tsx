@@ -29,6 +29,8 @@ type DesignerStageProps = {
   validation: PoseKeyValidation | null;
   canonicalGeometry: CanonicalBikeGeometry | null;
   mode: "bike" | "pose";
+  /** Showing an interpolated pose between keys; handles are inactive. */
+  previewing?: boolean;
   onResetPose: () => void;
   onJointDrag: (joint: JointName, value: number) => void;
 };
@@ -51,6 +53,7 @@ export const DesignerStage = ({
   validation,
   canonicalGeometry,
   mode,
+  previewing = false,
   onResetPose,
   onJointDrag
 }: DesignerStageProps) => {
@@ -72,7 +75,7 @@ export const DesignerStage = ({
     return () => clearTimeout(timer);
   }, [selectedTargets]);
 
-  const showLimits = recentlyAdjusted || active !== null || hovered !== null;
+  const showLimits = !previewing && (recentlyAdjusted || active !== null || hovered !== null);
   const resizeTick = useCanvasResize(canvasRef);
 
   useEffect(() => {
@@ -175,7 +178,7 @@ export const DesignerStage = ({
             aria-label="Bike and rider Designer preview"
             style={{ cursor: active ? "grabbing" : hovered ? "grab" : "default" }}
             onPointerDown={(event) => {
-              const point = worldPoint(event.clientX, event.clientY);
+              const point = previewing ? null : worldPoint(event.clientX, event.clientY);
               const handle = point ? pickPoseHandle(poseHandles(sample), point) : null;
               if (!handle) {
                 return;
@@ -190,7 +193,7 @@ export const DesignerStage = ({
                 dragTo(active, event.clientX, event.clientY);
                 return;
               }
-              const point = worldPoint(event.clientX, event.clientY);
+              const point = previewing ? null : worldPoint(event.clientX, event.clientY);
               const handle = point ? pickPoseHandle(poseHandles(sample), point) : null;
               setHovered(handle?.joint ?? null);
             }}
@@ -209,9 +212,9 @@ export const DesignerStage = ({
           />
 
           <p className="sr-only" aria-live="polite">
-            Pose sample at {selectedS.toFixed(2)} metres. Target knee{" "}
-            {toDegrees(selectedTargets.knee)}, hip {toDegrees(selectedTargets.hip)}, spine{" "}
-            {toDegrees(selectedTargets.spine)}. Calculated elbow{" "}
+            Pose sample at {selectedS.toFixed(2)} metres{previewing ? " (clip preview)" : ""}.
+            Target knee {toDegrees(selectedTargets.knee)}, hip {toDegrees(selectedTargets.hip)},
+            spine {toDegrees(selectedTargets.spine)}. Calculated elbow{" "}
             {toDegrees(sample?.derivedArm.elbow ?? 0)}.{" "}
             {saturated ? "Constrained to finite reachable limits." : "Within requested limits."}{" "}
             Bike fit is shown schematically; wheels and rider contacts are measured.
@@ -221,18 +224,22 @@ export const DesignerStage = ({
             s = {selectedS.toFixed(2)} m · <strong>{selectedLabel}</strong>
           </div>
           <div className="stage-badge top-right">
-            {validation && !validation.valid
-              ? "clearance blocked"
-              : validation?.contacts.some((contact) => contact.active)
-                ? "contact valid"
-                : saturated
-                  ? "constrained"
-                  : "clearance valid"}
+            {previewing
+              ? "clip preview"
+              : validation && !validation.valid
+                ? "clearance blocked"
+                : validation?.contacts.some((contact) => contact.active)
+                  ? "contact valid"
+                  : saturated
+                    ? "constrained"
+                    : "clearance valid"}
           </div>
           <div className="pose-hint" data-od-id="canvas-hint">
             {mode === "bike"
               ? null
-              : `Drag the knee, hip, or shoulder handle to pose the rider. ${saturationReason ?? "Handles stop at each joint's limit arc."}`}
+              : previewing
+                ? "Previewing the pose between keys. Select a key to edit it."
+                : `Drag the knee, hip, or shoulder handle to pose the rider. ${saturationReason ?? "Handles stop at each joint's limit arc."}`}
           </div>
         </div>
       </div>
