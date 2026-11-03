@@ -39,7 +39,9 @@ export type PosePreview = {
 export const usePosePreview = (
   scenario: Scenario | null,
   keyframes: PreviewKey[],
-  interpolation: PoseClip["interpolation"]
+  interpolation: PoseClip["interpolation"],
+  /** Distance range to play; defaults to the first and last keys. */
+  range?: { start: number; end: number }
 ): PosePreview => {
   const { solverGateway } = useAppServices();
   const [s, setS] = useState<number | null>(null);
@@ -48,8 +50,8 @@ export const usePosePreview = (
   const [sample, setSample] = useState<PoseSample | null>(null);
 
   const ordered = [...keyframes].sort((left, right) => left.s - right.s);
-  const start = ordered[0]?.s ?? 0;
-  const end = ordered[ordered.length - 1]?.s ?? 0;
+  const start = range?.start ?? ordered[0]?.s ?? 0;
+  const end = range?.end ?? ordered[ordered.length - 1]?.s ?? 0;
   const speed = Math.max(0.1, (scenario?.entry.speed ?? 1) * rate);
 
   const exit = useCallback(() => {
@@ -147,7 +149,7 @@ export const usePosePreview = (
   }, [interpolation, keyframes, s, scenario, solverGateway]);
 
   const behind = s === null ? undefined : [...ordered].reverse().find((key) => key.s <= s + 1e-6);
-  const label = behind?.label ?? ordered[0]?.label ?? "";
+  const label = behind?.label ?? (s === null ? "" : `before ${ordered[0]?.label ?? "first key"}`);
 
   return {
     s,

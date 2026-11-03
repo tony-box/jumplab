@@ -141,6 +141,28 @@ describe("pose editor", () => {
     cleanup();
   });
 
+  it("marks the transition start, lip, and landing on the distance strip", async () => {
+    const terrain = vi.fn().mockResolvedValue({
+      segments: [],
+      approachStartX: -10,
+      lipX: 2.5,
+      landingStartX: 6.5,
+      sampleStep: 0.1
+    });
+    renderWithProviders(<DesignerPage />, {
+      services: { solverGateway: createSolverGateway({ terrain }) }
+    });
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-od-id="jump-marker-landing"]')).not.toBeNull()
+    );
+    for (const label of ["Transition", "Lip", "Landing"]) {
+      expect(screen.getByText(label, { selector: ".jump-marker-label" })).toBeVisible();
+    }
+    expect(screen.getByText(/Lip at 2\.50 metres, Landing at 6\.50 metres/)).toBeInTheDocument();
+    // The strip and scrubber extend to the landing even when the keys stop short of it.
+    expect(screen.getByLabelText("Preview position along the run")).toHaveAttribute("max", "6.5");
+  });
   it("previews the interpolated pose along the clip and returns to key editing", async () => {
     const samplePose = vi.fn(async (_scenario: Scenario, s: number) => createSample(s));
     renderWithProviders(<DesignerPage />, {

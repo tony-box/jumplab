@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 
 import { AppShell, Callout } from "../../components/ui";
@@ -11,13 +11,21 @@ import { KeyframeRail } from "./KeyframeRail";
 import { DesignerStage } from "./DesignerStage";
 import { useBikeDesigner } from "./useBikeDesigner";
 import { useDesignerEditor } from "./useDesignerEditor";
+import { useJumpMarkers } from "./useJumpMarkers";
 import { usePosePreview } from "./usePosePreview";
 
 export const DesignerPage = () => {
   const editor = useDesignerEditor();
   const bikeDesigner = useBikeDesigner(editor.scenario);
   const [mode, setMode] = useState<"bike" | "pose">("pose");
-  const preview = usePosePreview(editor.scenario, editor.keyframes, editor.interpolation);
+  const markers = useJumpMarkers(editor.scenario);
+  // The strip spans every key and every jump feature, so the clip can be seen against the jump.
+  const domain = useMemo(() => {
+    const positions = [...editor.keyframes.map((key) => key.s), ...markers.map((m) => m.s)];
+    if (positions.length < 2) return undefined;
+    return { start: Math.min(...positions), end: Math.max(...positions) };
+  }, [editor.keyframes, markers]);
+  const preview = usePosePreview(editor.scenario, editor.keyframes, editor.interpolation, domain);
   const { exit: exitPreview } = preview;
   // Choosing a key always returns to editing it, even if it was already selected.
   const selectKey = useCallback(
@@ -290,6 +298,8 @@ export const DesignerPage = () => {
                   onSelectKey={selectKey}
                   onMoveKey={editor.moveKey}
                   preview={preview}
+                  markers={markers}
+                  domain={domain}
                 />
               ) : null}
             </section>

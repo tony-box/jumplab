@@ -1298,15 +1298,43 @@ input[type="range"].reach-track::-moz-range-thumb {
   left: 0;
   border-top: 1px solid var(--border);
 }
-.distance-bar .lip-line {
+.distance-bar .jump-marker {
   position: absolute;
   z-index: 1;
   top: 0;
-  bottom: 15px;
-  width: 2px;
-  background: var(--muted);
-  opacity: 0.45;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed #8a959e;
+  pointer-events: none;
+}
+.distance-bar .jump-marker-lip {
+  border-left: 2px solid #59656f;
+  transform: translateX(-1px);
+}
+.jump-marker-labels {
+  position: relative;
+  height: 16px;
+  margin-inline: 6px;
+  margin-bottom: 2px;
+}
+.jump-marker-label {
+  position: absolute;
+  bottom: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   transform: translateX(-50%);
+}
+.jump-marker-label.jump-marker-lip {
+  color: #27313b;
+}
+.jump-marker-label.at-start {
+  transform: none;
+}
+.jump-marker-label.at-end {
+  transform: translateX(-100%);
 }
 .distance-bar .preview-line {
   position: absolute;
@@ -1429,6 +1457,18 @@ input[type="range"].reach-track::-moz-range-thumb {
   border-radius: 1px;
   background: var(--surface);
   cursor: pointer;
+}
+/* Small screens raise every button to 44px; the marker stays a square and gets the
+   touch target from an invisible halo instead. */
+.distance-bar button,
+.distance-bar button:is(*) {
+  min-width: 0;
+  min-height: 0;
+}
+.distance-bar button::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
 }
 .distance-bar button.selected {
   border-color: var(--accent-dark);

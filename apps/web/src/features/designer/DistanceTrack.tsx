@@ -6,6 +6,7 @@ import type { PoseClip } from "../../../../../packages/schema/src/index";
 import { Button } from "../../components/ui";
 import { buildChannelCurves } from "./pose-interpolation";
 import type { JointName } from "./pose-sampling";
+import type { JumpMarker } from "./useJumpMarkers";
 import { PREVIEW_RATES, type PosePreview, type PreviewRate } from "./usePosePreview";
 
 type DistanceTrackProps = {
@@ -15,6 +16,9 @@ type DistanceTrackProps = {
   onSelectKey: (keyId: string) => void;
   onMoveKey: (keyId: string, s: number) => void;
   preview?: PosePreview;
+  markers?: JumpMarker[];
+  /** Distance range across the strip; defaults to the keys. */
+  domain?: { start: number; end: number };
 };
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -37,25 +41,29 @@ export const DistanceTrack = ({
   interpolation,
   onSelectKey,
   onMoveKey,
-  preview
+  preview,
+  markers = [],
+  domain
 }: DistanceTrackProps) => {
   const barRef = useRef<HTMLDivElement | null>(null);
   const stopDragRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => stopDragRef.current?.(), []);
 
-  const first = keyframes[0]?.s ?? -1;
-  const last = keyframes[keyframes.length - 1]?.s ?? 1;
+  const first = domain?.start ?? keyframes[0]?.s ?? -1;
+  const last = domain?.end ?? keyframes[keyframes.length - 1]?.s ?? 1;
   const span = Math.max(0.001, last - first);
+  const percentAt = (s: number) => ((s - first) / span) * 100;
 
   const curves = buildChannelCurves(
     keyframes,
     interpolation,
     CHANNEL_JOINTS,
     VIEW_WIDTH,
-    VIEW_HEIGHT
+    VIEW_HEIGHT,
+    { start: first, end: last }
   );
-  const lipPercent = ((0 - first) / span) * 100;
+  const visibleMarkers = markers.filter((marker) => marker.s >= first && marker.s <= last);
 
   const pointerToS = (clientX: number): number => {
     const bar = barRef.current;
@@ -92,6 +100,27 @@ export const DistanceTrack = ({
         </span>
       </div>
 
+      {visibleMarkers.length > 0 ? (
+        <div className="jump-marker-labels" aria-hidden="true">
+          {visibleMarkers.map((marker) => (
+            <span
+              key={marker.id}
+              className={`jump-marker-label jump-marker-${marker.id}${
+                percentAt(marker.s) < 8 ? " at-start" : percentAt(marker.s) > 92 ? " at-end" : ""
+              }`}
+              style={{ left: `${String(percentAt(marker.s))}%` }}
+            >
+              {marker.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <p className="sr-only">
+        {visibleMarkers
+          .map((marker) => `${marker.label} at ${marker.s.toFixed(2)} metres`)
+          .join(", ")}
+      </p>
+
       <div
         ref={barRef}
         className="distance-bar"
@@ -120,18 +149,23 @@ export const DistanceTrack = ({
             />
           ))}
         </svg>
-        {lipPercent >= 0 && lipPercent <= 100 ? (
-          <i className="lip-line" style={{ left: `${String(lipPercent)}%` }} />
-        ) : null}
+        {visibleMarkers.map((marker) => (
+          <i
+            key={marker.id}
+            className={`jump-marker jump-marker-${marker.id}`}
+            data-od-id={`jump-marker-${marker.id}`}
+            style={{ left: `${String(percentAt(marker.s))}%` }}
+          />
+        ))}
         {preview && preview.s !== null ? (
           <i
             className="preview-line"
             data-od-id="preview-playhead"
-            style={{ left: `${String(((preview.s - first) / span) * 100)}%` }}
+            style={{ left: `${String(percentAt(preview.s))}%` }}
           />
         ) : null}
         {keyframes.map((key) => {
-          const left = ((key.s - first) / span) * 100;
+          const left = percentAt(key.s);
           return (
             <button
               key={key.id}

@@ -100,14 +100,16 @@ export const buildChannelCurves = (
   interpolation: PoseClip["interpolation"],
   joints: readonly JointName[],
   viewBoxWidth: number,
-  viewBoxHeight: number
+  viewBoxHeight: number,
+  /** Distance range drawn across the view box; defaults to the keys. Outside the keys targets hold. */
+  domain?: { start: number; end: number }
 ): ChannelCurve[] => {
   if (keys.length < 2) {
     return [];
   }
 
-  const first = keys[0]!.s;
-  const last = keys[keys.length - 1]!.s;
+  const first = domain?.start ?? keys[0]!.s;
+  const last = domain?.end ?? keys[keys.length - 1]!.s;
   const span = Math.max(last - first, 1e-6);
 
   return joints.map((joint) => {
